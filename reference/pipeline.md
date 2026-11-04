@@ -23,6 +23,11 @@ The mp3 goes in `seqs/<song>/` (song keys may contain a slash: `new/owl`).
 ./run analyze_key.py <song>              # key per 16 s window; spot modulations and minor stretches
 ./run find_motif.py <song> HI=6.6:7.6 LO=9.0:10.05 --notes=6   # every repeat of a riff the user pointed at
 ```
+- **If the user has a video of their real show**, use it: it's the only view of how effects, colours and brightness
+  actually look on their props. `footage.py <xsq> <video> --sync` finds the offset, `--map` shows where each element
+  is in the frame and whether the video matches that version of the sequence (peak r ~0.9 yes, ~0.3 no), and
+  `footage.py <xsq> <video> out.png 30-36/6` labels frames with the effects running. Read the frames yourself.
+  Phone cameras auto-expose and clip saturated pixels to white, so trust shapes and relative brightness over hue.
 - `extract_events.py` fits a fixed click grid and reports drift per 20 s window. **Drift over ~60 ms = the band
   played without a click: rerun with `--loose`** (beat tracker follows the drummer; hits keep real times). Use
   `--bpm=` when tempo comes out half/double, `--melody=<stem>` for instrumentals.
