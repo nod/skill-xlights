@@ -57,5 +57,8 @@ faster than anything. Things xLights would show but these checks can't: whether 
 user as "things to check when you render".
 
 The builder keeps a hash of each file it wrote in `.build_hashes.json` and refuses to overwrite a sequence that
-changed since (the user edited it in xLights). Back it up or ask before `--force`. To test without touching the real
+changed since (the user edited it in xLights). A changed hash can also mean the user only *saved*: xLights rewrites
+the whole file on every Save (times snap to the grid, strings normalise, `EffectDB` re-indexes; see
+`xsq-format.md`), so compare the effects by content before concluding they edited it. Back it up or ask before
+`--force`. To test without touching the real
 file, pass an output path. If you test-build to a scratch path, remember the hash bookkeeping writes there too.
