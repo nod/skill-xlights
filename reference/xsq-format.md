@@ -55,3 +55,24 @@ Shaders (`E_0FILEPICKERCTRL_IFS`) and the media file need absolute paths **on th
 `NodesPerString / strands` pixels, `Vertical="true"` = strands are columns; arches `NodesPerArch`; single lines
 `NodesPerString`; positions `WorldPosX/Y/Z`. `<modelGroups>`: `<modelGroup name models="a,b,c" layout="minimalGrid"
 GridSize="400">`. Groups can contain groups. `scripts/layout_report.py` summarises it.
+
+## What an xLights Save does to the file
+xLights rewrites the whole file on every Save, edited or not:
+- times snap to the 25 ms frame grid (an off-grid 5680 becomes 5675);
+- settings and palette strings are normalised (keys re-ordered, values reformatted);
+- `EffectDB` and `ColorPalettes` are rebuilt and re-indexed, so every `ref` and `palette` number can change.
+
+So the bytes differ after any Save, and a hash (`.build_hashes.json`) cannot tell a hand edit from a plain Save. To
+tell them apart, compare by content: per element and layer, the list of (effect name, start, end) with one frame
+(25 ms) of tolerance on the times, then the settings of the effects that are still paired.
+
+Other things the files on disk tell you:
+- **Autosave writes `<seq>.xbkp`** beside the sequence, never the `.xsq` or the `.fseq`. A `.xbkp` newer than the
+  `.xsq` means xLights holds unsaved edits; closing the sequence discards them. Look there when work seems lost.
+- **A render does not write the `.fseq`; a Save does.** The `.fseq` is **sparse**: it holds only the channels of the
+  models used in that sequence (a model not in the sequence reads as dark), and models with no controller are
+  numbered by name after the last controller. A sequence whose length changed keeps the old `.fseq`'s frame count
+  through open, render and save: move the old `.fseq` aside first.
+- **A Single Line, or an Arches model with one arch, has a one-pixel-tall default buffer**, so any directional
+  effect (Bars, Fill, a wipe) renders on it as a solid fill. Give it a buffer with more than one row
+  (`Per Model Per Preview` on its group, or a render buffer the effect can move across) when you want motion on it.
