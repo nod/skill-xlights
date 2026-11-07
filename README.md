@@ -36,7 +36,7 @@ On the first start, it will install some dependencies.
 | `scripts/` | The toolkit the agent copies into your show folder as `tooling/` |
 | `templates/build_template.py` | Starting point for a song's generator |
 | `examples/<song>/` | Eight real generators, each with handoff notes and the analysis summary they were built from |
-| `reference/` | The pipeline, the `.xsq` file format, effect settings, design techniques, case studies |
+| `reference/` | The pipeline, the `.xsq` file format, effect settings, design techniques, case studies, untried ideas |
 
 Audio files and lyrics are not included. Bring your own mp3s.
 
@@ -96,6 +96,7 @@ Only the listening step needs the heavy packages. The scripts that write and che
 | `extract_events.py`, `analyze_key.py`, `find_motif.py` | librosa, numpy |
 | `lyrics.py` | faster-whisper |
 | `timeline.py` | matplotlib |
+| `footage.py` | Pillow, ffmpeg (`--sync` also librosa, numpy) |
 | `seqlib.py`, `validate_xsq.py`, song `build.py` files | Python only, plus your `show_config.py` |
 | `layout_report.py`, `effect_examples.py`, `color_check.py` | Python only |
 | `xl.py` | Python only, plus `show_config.py` (`MEDIA_ROOT`); xLights 2026.17+ with its API port on |
@@ -172,6 +173,7 @@ cd <show>/tooling
 ./run validate_xsq.py ../seqs/mysong/mysong.xsq   # must report 0 problems
 ./run timeline.py ../seqs/mysong/mysong.xsq /tmp/t.png 0 60   # picture of the first minute
 ./run color_check.py ../seqs/a.xsq ../seqs/b.xsq  # compare colour vividness with a sequence you like
+./run footage.py ../seqs/a.xsq yard.mp4 /tmp/f.png 30-40/6   # a video of your real show, frames labelled with effects
 ./run xl.py open ../seqs/mysong/mysong.xsq && ./run xl.py render && ./run xl.py save   # through xLights' API
 ./run snap.py --fseq ../seqs/mysong/mysong.fseq --model Arch1 --at 0:42.5              # what that prop showed
 ```

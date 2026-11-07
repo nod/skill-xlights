@@ -19,7 +19,7 @@ anything - it is the user's own verdicts on their songs.
 ## Files in this skill
 | Path | What |
 |---|---|
-| `scripts/` | the toolkit, copied into `<show>/tooling/`: `setup.sh`, `separate.sh` (Demucs + Basic Pitch), `extract_events.py` (beats, hits, bars, summary), `lyrics.py` (Whisper words), `analyze_key.py`, `find_motif.py` (every repeat of a riff from one example), `seqlib.py` (effect helpers + .xsq writer), `validate_xsq.py`, `timeline.py`, `layout_report.py`, `effect_examples.py`, `xl.py` (drive xLights: open, render, save, close), `fseq.py` + `layout.py` (decode a saved render at a model's channels), `snap.py` (a still of one prop from the render), `xsq_compare.py` (do two .xsq draw the same effects), `show_config.example.py`, `run` |
+| `scripts/` | the toolkit, copied into `<show>/tooling/`: `setup.sh`, `separate.sh` (Demucs + Basic Pitch), `extract_events.py` (beats, hits, bars, summary), `lyrics.py` (Whisper words), `analyze_key.py`, `find_motif.py` (every repeat of a riff from one example), `seqlib.py` (effect helpers + .xsq writer), `validate_xsq.py`, `timeline.py`, `footage.py` (a real-show video lined up with its sequence), `layout_report.py`, `effect_examples.py`, `xl.py` (drive xLights: open, render, save, close), `fseq.py` + `layout.py` (decode a saved render at a model's channels), `snap.py` (a still of one prop from the render), `xsq_compare.py` (do two .xsq draw the same effects), `show_config.example.py`, `run` |
 | `templates/build_template.py` | starting point for a song's generator |
 | `examples/<song>/` | eight real generators with their handoff notes (`build.py`, `notes.md`, `summary.txt`). They use the names in `show_config.example.py` (the show they were made for) |
 | `reference/pipeline.md` | setup, commands, analysis gotchas |
@@ -27,6 +27,7 @@ anything - it is the user's own verdicts on their songs.
 | `reference/effects.md` | each effect: what it looks like, the helper, verified or not |
 | `reference/techniques.md` | recipes: characters, canvas motion, pixel art, crowds, story devices, moments |
 | `reference/case-studies.md` | what was built for each song and what the user said; the feedback that became rules |
+| `reference/ideas.md` | untried techniques to offer: singing faces, instrument pictures, words with transitions, masks, group render styles, timing-driven effects |
 
 ## First time in a show folder
 1. Look around: `xlights_rgbeffects.xml` (layout), `xlights_networks.xml`, the sequences folders. Find the newest

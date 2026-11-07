@@ -23,6 +23,11 @@ The mp3 goes in `seqs/<song>/` (song keys may contain a slash: `new/owl`).
 ./run analyze_key.py <song>              # key per 16 s window; spot modulations and minor stretches
 ./run find_motif.py <song> HI=6.6:7.6 LO=9.0:10.05 --notes=6   # every repeat of a riff the user pointed at
 ```
+- **If the user has a video of their real show**, use it: it's the only view of how effects, colours and brightness
+  actually look on their props. `footage.py <xsq> <video> --sync` finds the offset, `--map` shows where each element
+  is in the frame and whether the video matches that version of the sequence (peak r ~0.9 yes, ~0.3 no), and
+  `footage.py <xsq> <video> out.png 30-36/6` labels frames with the effects running. Read the frames yourself.
+  Phone cameras auto-expose and clip saturated pixels to white, so trust shapes and relative brightness over hue.
 - `extract_events.py` fits a fixed click grid and reports drift per 20 s window. **Drift over ~60 ms = the band
   played without a click: rerun with `--loose`** (beat tracker follows the drummer; hits keep real times). Use
   `--bpm=` when tempo comes out half/double, `--melody=<stem>` for instrumentals.
@@ -103,5 +108,9 @@ What it buys: whether a motif reads, whether the right prop lit, and what colour
 file instead of from the user's description. The user's eye still has the last word; it just starts later.
 
 The builder keeps a hash of each file it wrote in `.build_hashes.json` and refuses to overwrite a sequence that
-changed since (the user edited it in xLights). Back it up or ask before `--force`. To test without touching the real
-file, pass an output path. If you test-build to a scratch path, remember the hash bookkeeping writes there too.
+changed since (the user edited it in xLights). A changed hash can also mean the user only *saved*: xLights rewrites
+the whole file on every Save (times snap to the grid, strings normalise, `EffectDB` re-indexes; see
+`xsq-format.md`), so compare the effects by content before concluding they edited it: build to a scratch path
+and `./run xsq_compare.py /tmp/built.xsq ../seqs/<song>/<name>.xsq` (`xl.py save` does this itself). Back it up or
+ask before `--force`. To test without touching the real file, pass an output path. If you test-build to a scratch
+path, remember the hash bookkeeping writes there too.
