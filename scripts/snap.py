@@ -7,8 +7,10 @@ usage: snap.py --fseq <song.fseq> --model <name> --at <m:ss[.t] | seconds> [--ou
 
 How it reads the render:
 - frame index = floor(t / step), step from the fseq header (25 ms);
-- channels through `layout.Layout`: per-model absolute base (controller base + offset - 1) and stride (4 for an
-  RGBW model, 3 otherwise); `fseq.rgb` takes a 1-based node and does the channel-minus-one itself;
+- channels through `layout.Layout`: per-model absolute base (controller base + offset - 1), channels per node and
+  colour order from the StringType ("GRB Nodes", "RGBW Nodes", single colour; a white channel is added to R, G
+  and B); `fseq.rgb` takes a 1-based node and does the channel-minus-one itself. One-node-per-string types (a
+  dumb string, a strobe, a 3-channel flood) are refused;
 - the model is bounded by the NEXT model's start channel: if its nodes x stride would run past it the tool
   refuses, because a frame read does no bounds checking and a wrong geometry would read the neighbour;
 - sample STRICTLY INSIDE an effect's span: a boundary frame still holds the neighbour's last frame. This draws
@@ -38,7 +40,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fseq import FSEQ, rgb as _rgb
-from layout import Layout, show_folder_of
+from layout import Layout, show_folder_of, single_node, channels_per_node, channel_order
 
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -246,16 +248,10 @@ def positions(m, cone=False):
 
 
 # --------------------------------------------------------------------------- reading
-def decode(fs, frame_no, base, stride, nodes):
-    """{node: (r,g,b)} for 1-based nodes 1..nodes, through fseq.rgb for stride 3 and the RGBW stride otherwise."""
+def decode(fs, frame_no, base, stride, nodes, order=(0, 1, 2, ())):
+    """{node: (r,g,b)} for 1-based nodes 1..nodes, through fseq.rgb with the model's stride and colour order."""
     fr = fs.frame(frame_no)
-    out = {}
-    for n in range(1, nodes + 1):
-        if stride == 3: out[n] = _rgb(fr, base, n)
-        else:
-            o = (base - 1) + (n - 1) * stride
-            out[n] = tuple(fr[o:o + 3])
-    return out
+    return {n: _rgb(fr, base, n, stride, order) for n in range(1, nodes + 1)}
 
 def bound_check(root, m, base, stride, nodes, lay):
     """Refuse to read past the next model's start channel."""
@@ -353,7 +349,11 @@ def main():
     lay = Layout(show)
     m, root = model_element(show, a.model)
     base = abs_start(m, lay)
-    stride = lay.stride.get(a.model, 4 if 'RGBW' in (m.get('StringType') or '') else 3)
+    st = m.get('StringType') or 'RGB Nodes'
+    if single_node(st):
+        sys.exit(f"{a.model!r} is {st!r}: xLights drives it as one node per string, not one per pixel, and snap.py "
+                 "draws per-pixel models only")
+    stride, order = channels_per_node(st), channel_order(st)
     pos, note = positions(m, a.cone)
     nodes = max(pos) if pos else 0
     if not pos: sys.exit(f'{a.model!r}: no node positions could be derived')
@@ -387,7 +387,7 @@ def main():
         tiles = []
         for t in times:
             fno = frame_of(fs, t)
-            cols = decode(fs, fno, base, stride, nodes)
+            cols = decode(fs, fno, base, stride, nodes, order)
             tiles.append(draw_model(pos, cols, cell, a.gain, subs, caption=f'{mmss(t, 1)} f{fno}', font_px=11))
         tw, th = max(t.width for t in tiles), max(t.height for t in tiles)
         per_row = max(1, a.max_px // (tw + 4))
@@ -402,14 +402,14 @@ def main():
         print(f'strip {span(lo, hi, 1)} x{len(tiles)} -> {out} ({sheet.width}x{sheet.height})')
         if subs:
             for t in times:
-                cols = decode(fs, frame_of(fs, t), base, stride, nodes)
+                cols = decode(fs, frame_of(fs, t), base, stride, nodes, order)
                 lit = {nm: sum(1 for n in ns if 1 <= n <= nodes and max(cols[n]) > LIT) for nm, ns in subs}
                 print(f'  {mmss(t, 1):>7}  ' + '  '.join(f'{nm}={v}' for nm, v in lit.items()))
         return
 
     t = parse_time(a.at)
     fno = frame_of(fs, t)
-    cols = decode(fs, fno, base, stride, nodes)
+    cols = decode(fs, fno, base, stride, nodes, order)
     cell = fit_scale(pos, a.scale, a.max_px)
     cap = f'{a.model}  {mmss(t, 3)}  frame {fno}  {fpath.name}'
     img = draw_model(pos, cols, cell, a.gain, subs, caption=cap)

@@ -110,12 +110,18 @@ def _sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def unchanged_since_build(path):
+    """True if `path` is byte for byte what the builder last wrote (or recorded) there"""
+    path = Path(path).resolve()
+    known = json.loads(HASHES.read_text()) if HASHES.exists() else {}
+    return path.exists() and known.get(str(path)) == _sha(path)
+
+
 def check_overwrite(path, force=False):
     """True if it's safe to write `path`: it doesn't exist, it's unchanged since our last build, or force"""
     path = Path(path).resolve()
     if not path.exists() or force: return True
-    known = json.loads(HASHES.read_text()) if HASHES.exists() else {}
-    if known.get(str(path)) == _sha(path): return True
+    if unchanged_since_build(path): return True
     print(f'NOT WRITING {path}: it changed since the last build (edited in xLights?).\n'
           f'Back it up or pass --force to overwrite.', file=sys.stderr)
     return False

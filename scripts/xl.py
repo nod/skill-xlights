@@ -5,34 +5,46 @@ Read reference/pipeline.md, "Render, save, read back", before using this.
 usage:  ./run xl.py status                        which show folder xLights has loaded, and what is open
         ./run xl.py open ../seqs/<song>/<name>.xsq
         ./run xl.py render                        ONE renderAll; nothing may touch the sequence while it runs
+        ./run xl.py open <name>.xsq --ignore-xbkp  open although <name>.xbkp is newer (throws the autosave away)
         ./run xl.py save                          saveSequence (xLights 2026.17+), then wait for the .fseq to settle
-        ./run xl.py close [--discard]             refuses while <name>.xbkp is newer than the .xsq (unsaved edits)
+        ./run xl.py close [--discard]             refuses while xLights reports unsaved changes, unless --discard
 
 One-time setup in xLights: Preferences -> Output -> API Port -> Port A (49913). Or start xLights with -a.
 xLights binds that port on every interface (its wxIPV4address is left at INADDR_ANY), so an agent on another machine
 can reach it over the LAN if the xLights machine's firewall lets the connection in: set XLIGHTS_HOST=<that machine>
-(default 127.0.0.1), and XLIGHTS_PORT=49914 if you picked Port B. Paths sent to xLights are rewritten from the show
+(default 127.0.0.1), and XLIGHTS_PORT=49914 if you picked Port B. The API has no password: anything that can reach
+the port can open, save over, close or run scripts in that xLights, so let the firewall in from the agent's machine
+only (reference/pipeline.md). Paths sent to xLights are rewritten from the show
 folder here (SHOW) to the show folder as xLights sees it (MEDIA_ROOT in show_config.py), the same mapping the media
 paths already use, and paths xLights reports are mapped back. The .fseq and .xbkp checks read THIS machine's copy of
 the show folder, so a synced folder has to have caught up first.
 
-Rules, each paid for with a crash or a lost evening on the show this was built on. xl.py enforces them:
-- GPU rendering OFF in xLights (Preferences; the setting is `xLightsGPURendering`). Metal shader effects (Fire)
-  hung the machine under automation: nine GPU resets in one morning.
+Rules, each paid for with a crash or a lost evening on the show this was built on. xl.py enforces all but the first:
+- GPU rendering OFF in xLights (Preferences; the setting is `xLightsGPURendering`, ON by default). Metal shader
+  effects (Fire) hung the machine under automation: nine GPU resets in one morning. The API cannot read the
+  setting, so xl.py cannot check it: ask the user to turn it off before the first render.
 - ONE render at a time, and nothing touches the sequence while it runs. A close, open or checkSequence queued under
   a live render is what took the GPU down (four resets in 90 s); a lone renderAll on a warm cache is fine. The lock
   file enforces it: open, close and save refuse while a render is in flight, and a second render refuses to start.
 - A render does not write the .fseq; a SAVE does, and the API returns while xLights is still writing the file. save
   waits until the file stops growing (2 s stable) before it reports; a read before that sees a black show.
-- xLights holds the sequence, and the user's unsaved edits, in memory. A close discards them; autosave writes
-  <name>.xbkp, never the .xsq. close refuses while the .xbkp is newer than the .xsq unless you pass --discard.
+- xLights holds the sequence, and the user's unsaved edits, in memory, and an API open or close does not show its
+  Save Changes dialog. close asks xLights without force, so xLights itself refuses while there are unsaved changes
+  (only --discard forces it); open closes the current sequence the same way first. Autosave writes <name>.xbkp,
+  never the .xsq, and an API open skips xLights' offer to restore a newer .xbkp, so open refuses while the target's
+  .xbkp is newer than its .xsq.
+- A save rewrites the .xsq (times snap, strings normalise), so the builder would refuse the next build. When the
+  .xsq was the builder's own output before the save, save compares the two by content (xsq_compare.py) and, if
+  they draw the same effects, records the saved file as the build. Anything else (the user edited it in xLights)
+  is left for the builder to refuse.
 - The loaded show folder is part of a sequence's identity. Models and groups are per show folder, so open, render or
   save against another loaded show can write every model that layout lacks out of the file. Every write checks
   getShowFolder against MEDIA_ROOT first and refuses on a mismatch.
 """
-import json, os, sys, time, urllib.request, urllib.error
+import json, os, shutil, sys, time, urllib.request, urllib.error
 from pathlib import Path
-from seqlib import SHOW, MEDIA_ROOT, cli_args
+from seqlib import SHOW, MEDIA_ROOT, cli_args, unchanged_since_build, record_build
+from xsq_compare import compare
 
 HOST = os.environ.get('XLIGHTS_HOST', '127.0.0.1')
 PORT = int(os.environ.get('XLIGHTS_PORT', '49913'))
@@ -82,24 +94,33 @@ def same_show(folder):
 
 
 # ---------------------------------------------------------------- the API
-def call(cmd, timeout=600):
+class NoAnswer(SystemExit):
+    """xLights did not answer at all (not running, unreachable, or still busy past the timeout)."""
+
+
+def call(cmd, timeout=600, allow=()):
+    """Send one command. An HTTP error code in `allow` comes back as {'res': code, 'msg': ...}; any other error
+    exits with xLights' message. No answer raises NoAnswer."""
     req = urllib.request.Request(URL, data=json.dumps(cmd).encode(), headers={'Content-Type': 'application/json'})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             body = r.read().decode()
     except urllib.error.HTTPError as e:
-        # xLights answers 503 with a JSON body that says why ("Sequence not open."); report it as is
+        # xLights answers 503/504 with a JSON body that says why ("Sequence not open."); report it as is
         try:
             msg = json.loads(e.read().decode()).get('msg', '')
         except Exception:
             msg = ''
         if cmd['cmd'] == 'getOpenSequence' and 'not open' in msg.lower():
             return {'res': '200', 'seq': ''}             # a normal state, not an error
+        if e.code in allow:
+            return {'res': e.code, 'msg': msg}
         sys.exit(f"xLights answered HTTP {e.code} to {cmd['cmd']}: {msg or '(no message)'}")
-    except urllib.error.URLError as e:
-        sys.exit(f"xLights automation is not reachable at {HOST}:{PORT} ({e.reason}).\n"
-                 "  Is xLights running there? Enable the port once: Preferences -> Output -> API Port -> Port A (49913),\n"
-                 "  or start xLights with -a. From another machine set XLIGHTS_HOST and open the port in its firewall.")
+    except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+        raise NoAnswer(f"xLights automation did not answer {cmd['cmd']} at {HOST}:{PORT} "
+                       f"({getattr(e, 'reason', e)}).\n"
+                       "  Is xLights running there? Enable the port once: Preferences -> Output -> API Port -> Port A (49913),\n"
+                       "  or start xLights with -a. From another machine set XLIGHTS_HOST and open the port in its firewall.")
     try:
         res = json.loads(body)
     except json.JSONDecodeError:
@@ -132,6 +153,19 @@ def rendering():
     return True
 
 
+def take_lock():
+    """Create the lock atomically: a second render started at the same moment fails here instead of both running."""
+    rendering()                                         # clears a stale lock
+    LOCK.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(LOCK, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+    except FileExistsError:
+        sys.exit('REFUSING renderAll: a render is already in flight. Two renders queued together is the failure; '
+                 'wait for the first to return.')
+    with os.fdopen(fd, 'w') as f:
+        f.write(str(time.time()))
+
+
 def guard(what):
     if rendering():
         sys.exit(f"REFUSING {what}: a render is in flight ({LOCK}). Nothing may touch the sequence while it runs; "
@@ -149,15 +183,35 @@ def status():
               f"length {mmss(float(r.get('len', 0)) / 1000)}")
     else:
         print('no sequence open')
+    print('GPU rendering: the API cannot report it; it must be OFF in xLights Preferences before you render')
     return r
 
 
-def open_(xsq):
+def close_clean(what):
+    """Close the open sequence only if xLights says it has no unsaved changes (it answers 504 otherwise)."""
+    r = call({'cmd': 'closeSequence', 'quiet': 'true'}, allow=(504,))
+    if str(r.get('res')) == '504':
+        st = call({'cmd': 'getOpenSequence'})
+        sys.exit(f"REFUSING {what}: xLights has UNSAVED changes in {st.get('fullseq') or st.get('seq') or 'the open sequence'}"
+                 " (probably the user's). The API would discard them without asking. Ask the user; then "
+                 "`xl.py save` to keep them, or `xl.py close --discard` to throw them away.")
+    return r
+
+
+def open_(xsq, ignore_xbkp=False):
     guard('loadSequence')
     assert_show('loadSequence')
     p = Path(xsq)
     if not p.exists():
         sys.exit(f'{xsq}: no such file on this machine')
+    bk = p.with_suffix('.xbkp')
+    if not ignore_xbkp and bk.exists() and bk.stat().st_mtime > p.stat().st_mtime + 1:
+        hm = lambda f: time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(f.stat().st_mtime))
+        sys.exit(f"REFUSING open: {bk.name} (autosave {hm(bk)}) is newer than {p.name} (saved {hm(p)}), so it may hold "
+                 "edits that were never saved. Opening through the API skips xLights' offer to restore it, and the "
+                 "next autosave overwrites it. Ask the user to open it in xLights and choose; or pass --ignore-xbkp.")
+    if call({'cmd': 'getOpenSequence'}).get('seq'):
+        close_clean('open')
     target = there(p)
     r = call({'cmd': 'loadSequence', 'seq': target, 'promptIssues': 'false'})
     print(f"opened {target}: {r.get('msg', r)}")
@@ -170,14 +224,19 @@ def render():
     st = call({'cmd': 'getOpenSequence'})
     if st.get('fullseq'):
         assert_show('renderAll')
-    LOCK.parent.mkdir(parents=True, exist_ok=True)
-    LOCK.write_text(str(time.time()))
+    take_lock()
+    t0 = time.time()
     try:
-        t0 = time.time()
         r = call({'cmd': 'renderAll'}, timeout=1800)
-        print(f"renderAll returned after {time.time() - t0:.1f} s: {r.get('msg', r)}")
-    finally:
-        LOCK.unlink(missing_ok=True)
+    except NoAnswer as e:
+        # no answer is not "done": xLights may still be rendering, so the lock stays until it goes stale
+        sys.exit(f"{e.code}\n  The render lock stays ({LOCK}; it expires after {STALE_LOCK_S // 60} min): xLights may "
+                 "still be rendering. Check xLights before sending anything else.")
+    except BaseException:
+        LOCK.unlink(missing_ok=True)                    # xLights answered (an error): it is not rendering
+        raise
+    LOCK.unlink(missing_ok=True)
+    print(f"renderAll returned after {time.time() - t0:.1f} s: {r.get('msg', r)}")
 
 
 def settle(fseq, before_mtime, appear_s=30.0, stable_s=2.0, cap_s=120.0, poll_s=0.5):
@@ -208,8 +267,14 @@ def save(timeout=180):
     if not st.get('fullseq'):
         sys.exit('REFUSING save: xLights has no sequence open.')
     assert_show('saveSequence')
-    fseq = here(st['fullseq']).with_suffix('.fseq')
+    xsq = here(st['fullseq'])
+    fseq = xsq.with_suffix('.fseq')
     before = fseq.stat().st_mtime if fseq.exists() else 0
+    built, xsq_before = xsq.exists() and unchanged_since_build(xsq), (xsq.stat().st_mtime if xsq.exists() else 0)
+    if built:                                           # keep the builder's version to compare against
+        pre = CACHE / 'pre-save' / xsq.name
+        pre.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(xsq, pre)
     t0 = time.time()
     r = call({'cmd': 'saveSequence'}, timeout=timeout)
     t_api = time.time() - t0
@@ -221,21 +286,38 @@ def save(timeout=180):
         print(f"saveSequence returned {r.get('msg', r)} in {t_api:.1f} s but {fseq} did not change after "
               f"{waited:.1f} s ({note or 'no write seen'}). An unrendered sequence saves only the .xsq (render "
               "first), or a synced folder has not caught up. Do not read the .fseq as if it were new.")
+    if built:
+        rebuild_record(xsq, pre, xsq_before)
+    elif xsq.exists():
+        print(f"{xsq.name} was not the builder's last output before this save (edited in xLights, or built elsewhere); "
+              "its build record is left alone, so the builder will refuse to overwrite it.")
     return r
+
+
+def rebuild_record(xsq, pre, xsq_before):
+    """After a save of a file the builder wrote: record the saved file as the build if it draws the same effects."""
+    _, _, note = settle(xsq, xsq_before, appear_s=15)
+    if xsq.stat().st_mtime <= xsq_before:
+        print(f"{xsq.name} on this machine has not changed yet ({note}); the build record is unchanged, so the next "
+              "build will pass until the saved file syncs here and then refuse. Re-run `xl.py save` once it has synced.")
+        return
+    diffs = compare(pre, xsq)
+    if not diffs:
+        record_build(xsq)
+        print(f"{xsq.name}: the save only normalised the file (same effects); recorded it as the build, so the "
+              "builder can still overwrite it.")
+    else:
+        print(f"{xsq.name}: the saved file draws {len(diffs)} thing(s) differently from what the builder wrote, so "
+              "xLights held edits (probably the user's). The builder will refuse to overwrite it; ask the user.")
+        for d in diffs[:5]: print('  ' + d)
 
 
 def close(discard=False):
     guard('closeSequence')
-    if not discard:
-        st = call({'cmd': 'getOpenSequence'})
-        if st.get('fullseq'):
-            seq = here(st['fullseq']); bk = seq.with_suffix('.xbkp')
-            if seq.exists() and bk.exists() and bk.stat().st_mtime > seq.stat().st_mtime + 1:
-                hm = lambda p: time.strftime('%H:%M:%S', time.localtime(p.stat().st_mtime))
-                sys.exit(f"REFUSING close: {bk.name} (autosave {hm(bk)}) is newer than {seq.name} (saved {hm(seq)}): "
-                         "xLights holds UNSAVED edits, probably the user's. `xl.py save` first, or "
-                         "`xl.py close --discard` to throw them away.")
-    r = call({'cmd': 'closeSequence', 'quiet': 'true', 'force': 'true'})
+    if discard:
+        r = call({'cmd': 'closeSequence', 'quiet': 'true', 'force': 'true'})
+    else:
+        r = close_clean('close')
     print(f"closed: {r.get('msg', r)}")
 
 
@@ -243,7 +325,7 @@ def main():
     args = cli_args()
     cmd = args[0] if args else ''
     if cmd == 'status': status()
-    elif cmd == 'open' and len(args) == 2: open_(args[1])
+    elif cmd == 'open' and len(args) == 2: open_(args[1], ignore_xbkp='--ignore-xbkp' in sys.argv)
     elif cmd == 'render': render()
     elif cmd == 'save': save()
     elif cmd == 'close': close(discard='--discard' in sys.argv)

@@ -3,6 +3,7 @@
     fs = FSEQ('../seqs/song/song.fseq')   # header: fs.channels, fs.frames, fs.step (ms per frame), fs.ranges
     fr = fs.frame(n)                       # bytes laid out at ABSOLUTE channels: byte index = channel - 1
     rgb(fr, start_channel, node)           # one node's (r, g, b); start channel and node both 1-based
+    rgb(fr, start, node, lay.stride[m], lay.order[m])   # any other string type (RGBW, GRB, single colour)
 
 What this gets right, each learned from a wrong reading that looked plausible:
 - the compression block count is ((byte 20 >> 4) << 8) | byte 21, not byte 21 alone; the short read decodes
@@ -10,7 +11,8 @@ What this gets right, each learned from a wrong reading that looked plausible:
 - the block table is padded with (0, 0) slots; a reverse search that matches one returns an empty frame.
 - the file is SPARSE: xLights stores only the channels of the models used in the sequence, as (start, count)
   ranges. frame() lays them back out at absolute channels, so a model not in the sequence reads dark instead
-  of shifting every later model's bytes.
+  of shifting every later model's bytes. The laid-out frame ends at the last stored channel; rgb() reads
+  anything past it as dark too.
 - the byte index of channel c is c - 1. rgb() takes a 1-based start channel and a 1-based node and does the
   subtraction itself. Doing it again reads (G, B, R-of-the-next-node): pure red looks blue, and every colour
   reported from the render is shifted while still looking like a colour.
@@ -89,9 +91,16 @@ class FSEQ:
         raise IndexError(n)
 
 
-def rgb(frame, abs_start_channel, node):
+def rgb(frame, abs_start_channel, node, stride=3, order=(0, 1, 2, ())):
     """RGB of one node in a decoded frame. `abs_start_channel` is the model's absolute start channel, 1-based
-    (controller base + StartChannel offset - 1); `node` is 1-based. Three channels per node: for an RGBW model
-    read the bytes yourself with stride 4 (snap.py does)."""
-    o = (abs_start_channel - 1) + (node - 1) * 3
-    return tuple(frame[o:o + 3])
+    (controller base + StartChannel offset - 1); `node` is 1-based. `stride` and `order` come from
+    `layout.Layout` (lay.stride[m], lay.order[m]): the defaults are an "RGB Nodes" model. A white channel is
+    added to all three (an approximation of how it looks); a one-channel node (order None) reads as grey.
+    Channels past the end of the file's data (a model above the last stored range) read dark."""
+    o = (abs_start_channel - 1) + (node - 1) * stride
+    raw = bytes(frame[o:o + stride]).ljust(stride, b"\0")
+    if order is None:
+        return (raw[0],) * 3
+    ri, gi, bi, whites = order
+    w = max((raw[i] for i in whites), default=0)
+    return tuple(min(255, raw[i] + w) for i in (ri, gi, bi))

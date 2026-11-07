@@ -48,40 +48,56 @@ analyze_key.py to write the `SECTIONS` table.
 ./run timeline.py ../seqs/<song>/<name>.xsq /tmp/a.png 0 60   # picture of every row/layer; look at it
 ```
 Also print the Story timing track (labels + times) and read it against the lyrics - it catches mistimed moments
-faster than anything. Things xLights would show but these checks can't: whether a motif *reads*. If xLights is
-reachable, look yourself (next section); otherwise list those for the user as "things to check when you render".
+faster than anything. Things xLights would show but these checks can't: whether a motif *reads*. If the user has
+set up the next section and said you may use it, look yourself; otherwise list those for the user as "things to
+check when you render".
 
-## Render, save, read back (optional: xLights 2026.17+ with its API port on)
+## Render, save, read back (optional, and only when the user asks for it)
 Everything above checks the XML. This step checks the RENDER: `xl.py` drives the running xLights through its
 automation API, saves (the save is what writes the `.fseq`), and `snap.py` decodes the saved frames at a model's
-exact channels and draws the prop as it was lit.
+exact channels and draws the prop as it was lit. It takes over the user's xLights while it runs, so use it only
+when they have set it up and said yes, and not while they are working in xLights. Needs xLights 2026.17 or newer.
 ```sh
 ./run xl.py status                                    # which show folder xLights has loaded, what is open
-./run xl.py open ../seqs/<song>/<name>.xsq            # refuses while xLights has another show folder loaded
+./run xl.py open ../seqs/<song>/<name>.xsq            # refuses on another show folder, unsaved changes, newer .xbkp
 ./run xl.py render                                    # ONE renderAll; nothing may touch the sequence meanwhile
 ./run xl.py save                                      # writes the .fseq and waits until it stops growing
 ./run snap.py --fseq ../seqs/<song>/<name>.fseq --model <Model> --at 1:02.5                    # a still of one prop
 ./run snap.py --fseq ../seqs/<song>/<name>.fseq --model <Model> --strip 1:02..1:04 --step 0.1  # a contact sheet
-./run xl.py close                                     # refuses while <name>.xbkp is newer than the .xsq
+./run xl.py close                                     # refuses while xLights reports unsaved changes
 ```
-Setup, once, in xLights: Preferences -> Output -> API Port -> Port A (49913), and GPU rendering OFF (the Metal
-shader effects hung the machine under automation). From another machine set `XLIGHTS_HOST=<the xLights machine>`:
-xLights binds the port on all interfaces, so only that machine's firewall is in the way; `xl.py` maps paths through
-`MEDIA_ROOT` the way the media paths already are, and reads the `.fseq` from this machine's copy of the show folder
-once it has synced.
+Setup, once, by the user in xLights: Preferences -> Output -> API Port -> Port A (49913), and **GPU rendering OFF**
+(Preferences; on by default). The Metal shader effects hung the machine under automation, and the API cannot report
+the setting, so `xl.py` cannot check it: ask. From another machine set `XLIGHTS_HOST=<the xLights machine>`; `xl.py`
+maps paths through `MEDIA_ROOT` the way the media paths already are, and reads the `.fseq` from this machine's copy
+of the show folder once it has synced, so the sync has to carry the `.fseq` back as well as the `.xsq` out.
+
+**The API has no password.** xLights binds the port on every interface and answers any request that reaches it:
+open, save over, Save As anywhere, close without saving, and `runScript`, which runs a script file from any path
+on that machine. Turn the port on only while you use it, and if the agent runs on another machine, let the
+firewall in from that one address only, never the whole LAN. It also answers web pages (it sends
+`Access-Control-Allow-Origin: *`), so a page open in a browser on a machine that can reach the port could send it
+commands too: another reason to keep it off when it isn't in use.
 
 Rules, each paid for with a crash or an evening on the show this came from; `xl.py` enforces them:
 - One render at a time, and nothing touches the sequence while it runs (a lock file). Churn under a live render is
-  what reset the GPU, not the render itself.
+  what reset the GPU, not the render itself. If xLights doesn't answer the render, the lock stays (it expires after
+  20 minutes): it may still be rendering.
 - A render does not write the `.fseq`; a save does, and the API returns before the write is finished. Read the file
   only after `save` reports it settled.
-- `save` before `close`: xLights holds the user's unsaved edits in memory and a close throws them away. Autosave
-  goes to `<name>.xbkp`, never the `.xsq`; look there when work is missing.
+- xLights holds the user's unsaved edits in memory, and an API open or close never shows the Save Changes dialog.
+  `close` and `open` ask xLights to close without force, so xLights itself refuses while there are unsaved changes;
+  then ask the user (`save` keeps them, `close --discard` throws them away). `open` also refuses while the target's
+  `<name>.xbkp` (autosave, never the `.xsq`) is newer than its `.xsq`: the API skips xLights' offer to restore it.
+- A save rewrites the `.xsq`, so the builder would refuse the next build. When the `.xsq` was the builder's own
+  output before the save, `save` compares the two by content (`xsq_compare.py`) and records the saved file as the
+  build if they draw the same effects; if they don't, xLights held edits, and the builder refuses as it should.
 - The loaded show folder is part of a sequence's identity: `xl.py` refuses to open, render or save while xLights has
   another show loaded, because that can write every model the other layout lacks out of the file.
 - `snap.py` refuses to read past the next model's start channel (a wrong geometry would quietly read the neighbour)
   and draws exactly the frame you ask for. Sample strictly inside an effect's span: a boundary frame still holds the
-  neighbour's last frame.
+  neighbour's last frame. It reads each model's channel count and colour order from its string type (`GRB Nodes`,
+  `RGBW Nodes`, single colour), and refuses the one-node-per-string types.
 
 What it buys: whether a motif reads, whether the right prop lit, and what colour actually came out, settled from the
 file instead of from the user's description. The user's eye still has the last word; it just starts later.
