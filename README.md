@@ -59,7 +59,9 @@ Start Claude Code in your xLights show folder (the one with `xlights_rgbeffects.
 
 ### You install
 - **xLights**, to render and play the sequences. It can run on a different machine from the agent; see
-  `MEDIA_ROOT` below.
+  `MEDIA_ROOT` below. With xLights 2026.17 or newer and its API port on, the agent can also render and save through
+  it and read the render back (`xl.py`, `snap.py`; `reference/pipeline.md`, "Render, save, read back"). It does
+  that only when you ask. The API has no password, so read the warning there before you open the port.
 - **bash** and **Python 3** (any recent version; it's only used to bootstrap).
 - **ffmpeg**, which Demucs uses to read mp3s. On Debian/Ubuntu: `apt install ffmpeg`. On macOS: `brew install ffmpeg`.
 
@@ -97,6 +99,9 @@ Only the listening step needs the heavy packages. The scripts that write and che
 | `footage.py` | Pillow, ffmpeg (`--sync` also librosa, numpy) |
 | `seqlib.py`, `validate_xsq.py`, song `build.py` files | Python only, plus your `show_config.py` |
 | `layout_report.py`, `effect_examples.py`, `color_check.py` | Python only |
+| `xl.py` | Python only, plus `show_config.py` (`MEDIA_ROOT`); xLights 2026.17+ with its API port on |
+| `fseq.py`, `layout.py`, `snap.py` | zstandard (setup.sh installs it); `snap.py` also Pillow, which matplotlib brings |
+| `xsq_compare.py` | Python only |
 
 `seqlib.py` imports `show_config.py` when it loads. Every script that uses `seqlib` fails until that file
 exists, so create it first.
@@ -169,6 +174,8 @@ cd <show>/tooling
 ./run timeline.py ../seqs/mysong/mysong.xsq /tmp/t.png 0 60   # picture of the first minute
 ./run color_check.py ../seqs/a.xsq ../seqs/b.xsq  # compare colour vividness with a sequence you like
 ./run footage.py ../seqs/a.xsq yard.mp4 /tmp/f.png 30-40/6   # a video of your real show, frames labelled with effects
+./run xl.py open ../seqs/mysong/mysong.xsq && ./run xl.py render && ./run xl.py save   # through xLights' API
+./run snap.py --fseq ../seqs/mysong/mysong.fseq --model Arch1 --at 0:42.5              # what that prop showed
 ```
 
 `reference/pipeline.md` covers the gotchas.

@@ -20,7 +20,7 @@ if [ ! -x "$V/audio/bin/python" ]; then
     # the default torch wheel drags in ~5 GB of CUDA libraries; take the CPU build
     "$UV" pip install -q -p "$V/audio/bin/python" \
         --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple \
-        --index-strategy unsafe-best-match torch torchaudio demucs soundfile librosa matplotlib faster-whisper
+        --index-strategy unsafe-best-match torch torchaudio demucs soundfile librosa matplotlib faster-whisper zstandard
 fi
 
 if [ ! -x "$V/basicpitch/bin/basic-pitch" ]; then
@@ -32,6 +32,7 @@ if [ ! -x "$V/basicpitch/bin/basic-pitch" ]; then
         tensorflow-io-gcs-filesystem keras tensorboard || true
 fi
 
-"$V/audio/bin/python" -c "import torch, demucs, librosa, matplotlib; print('audio env ok: torch', torch.__version__)"
+"$V/audio/bin/python" -c "import zstandard" 2>/dev/null || "$UV" pip install -q -p "$V/audio/bin/python" zstandard   # fseq.py (render read-back) on an older env
+"$V/audio/bin/python" -c "import torch, demucs, librosa, matplotlib, zstandard; print('audio env ok: torch', torch.__version__)"
 "$V/basicpitch/bin/python" -c "import basic_pitch; print('basicpitch env ok')" 2>/dev/null
 echo "environments ready in $V"
