@@ -42,10 +42,11 @@ anything - it is the user's own verdicts on their songs.
 4. Ask which of their existing sequences they love and why; read them with `effect_examples.py` and the XML. That's where their taste and the verified settings keys are.
 
 ## Making a sequence
-1. **Listen.** `separate.sh`, `extract_events.py` (`--loose` if it drifts), `lyrics.py --model=medium.en`
-   (`--prompt` + `--no-vad` if lines are missing), `analyze_key.py`. Read `summary.txt` + `lyrics.txt` together and
-   write the section table in bars: intro, verses, pre-choruses, choruses, stops (kick count 0), breakdowns, key
-   changes, the ending. Note which stem carries what (melody, lead, synth hook, backing "oohs").
+1. **Listen.** `separate.sh`, `extract_events.py` (`--loose` if it drifts; check the meter and bar 1 it reports),
+   `lyrics.py --model=medium.en` (`--prompt` + `--no-vad` if lines are missing), `analyze_key.py`. Read
+   `summary.txt` + `lyrics.txt` together and write the section table in bars: intro, verses, pre-choruses,
+   choruses, stops (kick count 0), breakdowns, key changes, the ending. Note which stem carries what (melody,
+   lead, synth hook, backing "oohs").
 2. **Understand.** What is the song about, in one sentence? What's the mood? What are its 2-4 signature sounds
    (a falsetto ooh, a guitar riff, a synth sparkle, a band that stops dead)? Where are its big moments (the key
    change, the drop, the last chorus, the silence)? Minor-key stretches are usually its darkest words.

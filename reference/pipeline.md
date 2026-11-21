@@ -31,6 +31,15 @@ The mp3 goes in `seqs/<song>/` (song keys may contain a slash: `new/owl`).
 - `extract_events.py` fits a fixed click grid and reports drift per 20 s window. **Drift over ~60 ms = the band
   played without a click: rerun with `--loose`** (beat tracker follows the drummer; hits keep real times). Use
   `--bpm=` when tempo comes out half/double, `--melody=<stem>` for instrumentals.
+- **Bars: meter and downbeat.** It measures whether the chord changes and kicks repeat every 3 or every 4 beats and
+  prints `N beats per bar` (2/4 and 4/4 both come out as 4; a 6/8 counted in eighths comes out as 3 at a fast tempo,
+  and it says so). Then it picks the beat bar 1 starts on and prints how far behind the runner-up is; under 15 % it
+  prints a WARNING that the downbeat is a guess. Even a clear-looking pick can be a beat or two off (one song's real
+  downbeat was where the band's slams landed, not where the tracker put it), so check bar 1 against the song before
+  you anchor moments to bar numbers. Override with `--meter=3` / `--phase=N` (0-based beat), then rebuild: the bar
+  numbers in `summary.txt` and the template's `B(n)` follow `events.json` `meter` and `phase`.
+- `separate.sh` records which mp3 the stems and notes came from (`source.txt`: its sha256 and name). Replace the mp3
+  with another edit and it separates again; `extract_events.py` refuses stems made from a different file.
 - Whisper drops lines (it lost most of a song after a silence; it found 7 lines of the Pixies song). Fix:
   `--prompt="a few phrases you know are sung, comma separated" --no-vad`. Always read `lyrics.txt`; Whisper also
   hallucinates text in silence after the song ends (ignore anything past `events.json` `end`).
