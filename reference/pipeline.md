@@ -84,7 +84,37 @@ firewall in from that one address only, never the whole LAN. It also answers web
 `Access-Control-Allow-Origin: *`), so a page open in a browser on a machine that can reach the port could send it
 commands too: another reason to keep it off when it isn't in use.
 
-Rules, each paid for with a crash or an evening on the show this came from; `xl.py` enforces them:
+**From another machine, through `xl_mcp.py`** (when the agent and xLights are on different machines). Run it on
+the xLights machine; it talks to xLights on that machine only (the API port need not be open to the network), asks
+every caller for a token, and gives the agent the commands above as MCP tools, under the same rules (they live in
+`xlapi.py`, which both use): `status`, `open_sequence`, `render`, `save`, `close`, `list_files`. Paths are relative
+to the show folder. Sequences are too big to send as tool arguments, so files go over HTTP beside it, with `xl.py`:
+```sh
+# on the xLights machine (Python 3.10+; copy scripts/xl_mcp.py, xlapi.py and xsq_compare.py there)
+uv run xl_mcp.py                       # or: pip install 'mcp>=2,<3' into a venv and run it with that python
+# it prints the two lines for the agent's machine:
+claude mcp add --transport http xlights http://<xLights machine>:8765/mcp --header "Authorization: Bearer <token>"
+export XLIGHTS_MCP_URL=http://<xLights machine>:8765 XLIGHTS_MCP_TOKEN=<token>
+# then, on the agent's machine:
+./run xl.py push ../seqs/<song>/<name>.xsq ../seqs/<song>/<song>.mp3 # into the show folder there
+#   MCP: open_sequence seqs/<song>/<name>.xsq, render, save
+./run xl.py pull ../seqs/<song>/<name>.fseq                         # back here, for snap.py
+#   MCP: close
+```
+The show folder defaults to the one xLights has loaded (`--show` to set it). A push never replaces a file the user
+changed there: it refuses unless the file is still what the server last pushed, or an `.xsq` that an xLights save
+only normalised (`xsq_compare.py`), and it refuses the sequence xLights has open and an `.xsq` whose `.xbkp` is
+newer. `--force` replaces it anyway; every replaced file is backed up under `~/.cache/xlights-tooling/mcp/replaced/`
+there. Only sequence, audio, video, image and shader files can be pushed; the layout is never written. `pull`
+refuses to replace a local `.xsq` that differs (it is the builder's file; `--out=<path>` to compare). The server
+runs one command at a time and answers "busy" to the rest, so nothing reaches xLights during a render. The token is
+plain HTTP on the LAN: let only the agent's machine through the firewall to the server's port.
+
+Recent xLights also serves its own MCP endpoint (`/mcp` on the API port). That is the raw command set, with none of
+these rules and the API port's lack of a password; use `xl_mcp.py` instead.
+
+Rules, each paid for with a crash or an evening on the show this came from; `xl.py` and `xl_mcp.py` enforce
+them:
 - One render at a time, and nothing touches the sequence while it runs (a lock file). Churn under a live render is
   what reset the GPU, not the render itself. If xLights doesn't answer the render, the lock stays (it expires after
   20 minutes): it may still be rendering.

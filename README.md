@@ -61,7 +61,9 @@ Start Claude Code in your xLights show folder (the one with `xlights_rgbeffects.
 - **xLights**, to render and play the sequences. It can run on a different machine from the agent; see
   `MEDIA_ROOT` below. With xLights 2026.17 or newer and its API port on, the agent can also render and save through
   it and read the render back (`xl.py`, `snap.py`; `reference/pipeline.md`, "Render, save, read back"). It does
-  that only when you ask. The API has no password, so read the warning there before you open the port.
+  that only when you ask. The API has no password, so read the warning there before you open the port. When xLights
+  runs on another machine, run `xl_mcp.py` there instead: an MCP server with a token that drives xLights locally,
+  plus `xl.py push` / `pull` to move sequences and renders between the machines.
 - **bash** and **Python 3** (any recent version; it's only used to bootstrap).
 - **ffmpeg**, which Demucs uses to read mp3s. On Debian/Ubuntu: `apt install ffmpeg`. On macOS: `brew install ffmpeg`.
 
@@ -99,7 +101,8 @@ Only the listening step needs the heavy packages. The scripts that write and che
 | `footage.py` | Pillow, ffmpeg (`--sync` also librosa, numpy) |
 | `seqlib.py`, `validate_xsq.py`, song `build.py` files | Python only, plus your `show_config.py` |
 | `layout_report.py`, `effect_examples.py`, `color_check.py` | Python only |
-| `xl.py` | Python only, plus `show_config.py` (`MEDIA_ROOT`); xLights 2026.17+ with its API port on |
+| `xl.py`, `xlapi.py` | Python only, plus `show_config.py` (`MEDIA_ROOT`); xLights 2026.17+ with its API port on |
+| `xl_mcp.py` | runs on the xLights machine: Python 3.10+ and the `mcp` package (`uv run xl_mcp.py` installs it), plus `xlapi.py` and `xsq_compare.py` beside it |
 | `fseq.py`, `layout.py`, `snap.py` | zstandard (setup.sh installs it); `snap.py` also Pillow, which matplotlib brings |
 | `xsq_compare.py` | Python only |
 
@@ -175,6 +178,7 @@ cd <show>/tooling
 ./run color_check.py ../seqs/a.xsq ../seqs/b.xsq  # compare colour vividness with a sequence you like
 ./run footage.py ../seqs/a.xsq yard.mp4 /tmp/f.png 30-40/6   # a video of your real show, frames labelled with effects
 ./run xl.py open ../seqs/mysong/mysong.xsq && ./run xl.py render && ./run xl.py save   # through xLights' API
+./run xl.py push ../seqs/mysong/mysong.xsq       # or, with xl_mcp.py on the xLights machine: push, then its MCP tools
 ./run snap.py --fseq ../seqs/mysong/mysong.fseq --model Arch1 --at 0:42.5              # what that prop showed
 ```
 
