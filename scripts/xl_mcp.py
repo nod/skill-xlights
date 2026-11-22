@@ -36,7 +36,7 @@ from xlapi import XLights, Refused, NoAnswer, newer_autosave
 from xsq_compare import compare
 
 PUSHABLE = {'.xsq', '.mp3', '.m4a', '.wav', '.ogg', '.flac', '.mp4', '.mov', '.png', '.jpg', '.jpeg', '.gif', '.svg',
-            '.fs', '.glsl', '.xtiming'}
+            '.fs', '.glsl', '.json', '.xtiming'}      # .json: the settings some shaders keep beside the .fs
 SHOW = STATE = XL = None                               # set in main()
 
 
@@ -46,7 +46,8 @@ SHOW = STATE = XL = None                               # set in main()
 #   0.1.1  fix: a push path with '..' could put the server's bookkeeping copy outside its folders; list_files
 #          patterns could list files outside the show folder
 #   0.1.2  fix: render refuses when no sequence is open (xLights blocks on a dialog otherwise)
-VERSION = '0.1.2'
+#   0.1.3  .json files can be pushed (shader sidecars), so a song folder can travel complete
+VERSION = '0.1.3'
 mcp = MCPServer('xlights', version=VERSION, instructions=(
     'Drives the xLights on the machine this server runs on, with safety rules (one render at a time, never discard '
     'unsaved edits). Use it only when the user has said you may drive their xLights, and not while they are working '
