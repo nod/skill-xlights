@@ -40,16 +40,10 @@ PUSHABLE = {'.xsq', '.mp3', '.m4a', '.wav', '.ogg', '.flac', '.mp4', '.mov', '.p
 SHOW = STATE = XL = None                               # set in main()
 
 
-def code_version():
-    """A short hash of the code this server runs (this file, xlapi.py, xsq_compare.py): equal on any two machines
-    running the same code, git or not. `python3 xl_mcp.py --version` prints it without starting."""
-    h = hashlib.sha256()
-    for name in ('xl_mcp.py', 'xlapi.py', 'xsq_compare.py'):
-        h.update((HERE / name).read_bytes())
-    return h.hexdigest()[:10]
-
-
-VERSION = code_version()
+# Bump on every change an agent could notice: MINOR for a new tool, parameter or route, MAJOR for one removed or
+# changed incompatibly, PATCH for a fix. `status`, the MCP handshake, the startup line and --version report it.
+#   0.1.0  status, open_sequence, render, save, close, list_files; GET/PUT /files; push guard (xsq_compare)
+VERSION = '0.1.0'
 mcp = MCPServer('xlights', version=VERSION, instructions=(
     'Drives the xLights on the machine this server runs on, with safety rules (one render at a time, never discard '
     'unsaved edits). Use it only when the user has said you may drive their xLights, and not while they are working '
