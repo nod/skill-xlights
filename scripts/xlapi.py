@@ -215,8 +215,10 @@ class XLights:
         if self.rendering():
             raise Refused('REFUSING renderAll: a render is already in flight. Two renders queued together is the '
                           'failure; wait for the first to return.')
-        if self.open_sequence().get('fullseq'):
-            self.assert_show('renderAll')
+        if not self.open_sequence().get('seq'):        # xLights answers a render with nothing open with a modal
+            raise Refused('REFUSING renderAll: no sequence is open. xLights would answer with a "you must open a '
+                          'sequence first" dialog, which blocks every later command until someone closes it.')
+        self.assert_show('renderAll')
         self.take_lock()
         t0 = time.time()
         try:

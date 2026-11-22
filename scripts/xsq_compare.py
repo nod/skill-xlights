@@ -8,8 +8,8 @@ times snap to the frame grid, settings and palette strings are normalised, Effec
 So a hash cannot tell a plain Save from a hand edit. This compares, per element and layer (timing tracks included),
 the list of (effect, start, end), with one frame of tolerance on the times, and then each paired effect's settings
 and palette as key=value maps with every number compared as a number and every colour case-folded. What a save
-also does is read as the same: a value-curve point of 0 left out, an empty setting written out, and a file path
-inside the show folder made relative.
+also does is read as the same: a value-curve point of 0 left out, an empty setting written out, a file path
+inside the show folder made relative, and an older file's E_FILEPICKER_<x>_Filename renamed E_TEXTCTRL_<x>_Filename.
 
 It errs towards "different": a key that xLights adds or drops on save, a default it writes out, reads as a change.
 That makes the builder refuse and an agent ask, which is the safe way to be wrong. The <head> (media, duration)
@@ -46,7 +46,9 @@ def _settings(s):
         k, _, v = part.partition('=')
         v = _norm_value(v)
         if not v: continue
-        out[k.strip()] = _norm_curve(v) if v.startswith('Active=') and '|' in v else v
+        k = k.strip()
+        if k.startswith('E_FILEPICKER_'): k = 'E_TEXTCTRL_' + k[len('E_FILEPICKER_'):]   # a 2026 save renames these
+        out[k] = _norm_curve(v) if v.startswith('Active=') and '|' in v else v
     return out
 
 
@@ -54,7 +56,7 @@ def _same(key, a, b):
     """Equal values, or one file path that is the other relative to the show folder (a save shortens paths inside
     it: /Users/you/show/Shaders/x.fs -> Shaders/x.fs)."""
     if a == b: return True
-    if a is None or b is None or 'FILEPICKER' not in key: return False
+    if a is None or b is None or not ('FILEPICKER' in key or key.endswith('Filename')): return False
     a, b = a.replace('\\', '/'), b.replace('\\', '/')
     return a.endswith('/' + b) or b.endswith('/' + a)
 
