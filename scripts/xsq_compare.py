@@ -7,7 +7,9 @@ xLights rewrites the whole file on every Save (reference/xsq-format.md, "What an
 times snap to the frame grid, settings and palette strings are normalised, EffectDB and ColorPalettes are re-indexed.
 So a hash cannot tell a plain Save from a hand edit. This compares, per element and layer (timing tracks included),
 the list of (effect, start, end), with one frame of tolerance on the times, and then each paired effect's settings
-and palette as key=value maps with every number compared as a number and every colour case-folded.
+and palette as key=value maps with every number compared as a number and every colour case-folded. What a save
+also does is read as the same: a value-curve point of 0 left out, an empty setting written out, and a file path
+inside the show folder made relative.
 
 It errs towards "different": a key that xLights adds or drops on save, a default it writes out, reads as a change.
 That makes the builder refuse and an agent ask, which is the safe way to be wrong. The <head> (media, duration)
@@ -22,17 +24,39 @@ HEX = re.compile(r'#[0-9a-fA-F]{6}\b')
 
 def _norm_value(v):
     """Numbers to one spelling (1.50 -> 1.5, 7.0 -> 7), colours to upper case."""
-    v = HEX.sub(lambda m: m.group(0).upper(), v.strip())
-    return NUM.sub(lambda m: f'{round(float(m.group(0)), 4):g}', v)
+    parts = HEX.split(v.strip())                       # numbers between the colours, never inside one
+    colours = [c.upper() for c in HEX.findall(v.strip())]
+    nums = [NUM.sub(lambda m: f'{round(float(m.group(0)), 4):g}', p) for p in parts]
+    return ''.join(n + (colours[i] if i < len(colours) else '') for i, n in enumerate(nums))
+
+
+CURVE_ZERO = re.compile(r'^P[1-4]=0$')
+
+
+def _norm_curve(v):
+    """A value curve (Active=TRUE|Id=...|Type=Ramp|P1=0|...): its fields sorted, a point of 0 dropped (a save omits it)."""
+    return '|'.join(sorted(p for p in v.split('|') if p and not CURVE_ZERO.match(p)))
 
 
 def _settings(s):
+    """key=value pairs; an empty value counts as absent (a save writes some empty settings out)."""
     out = {}
     for part in (s or '').split(','):
         if not part.strip(): continue
         k, _, v = part.partition('=')
-        out[k.strip()] = _norm_value(v)
+        v = _norm_value(v)
+        if not v: continue
+        out[k.strip()] = _norm_curve(v) if v.startswith('Active=') and '|' in v else v
     return out
+
+
+def _same(key, a, b):
+    """Equal values, or one file path that is the other relative to the show folder (a save shortens paths inside
+    it: /Users/you/show/Shaders/x.fs -> Shaders/x.fs)."""
+    if a == b: return True
+    if a is None or b is None or 'FILEPICKER' not in key: return False
+    a, b = a.replace('\\', '/'), b.replace('\\', '/')
+    return a.endswith('/' + b) or b.endswith('/' + a)
 
 
 def _layers(path):
@@ -72,7 +96,7 @@ def _where(key):
 
 def _dict_diff(a, b):
     keys = sorted(set(a) | set(b))
-    return [f'{k}: {a.get(k, "(none)")} -> {b.get(k, "(none)")}' for k in keys if a.get(k) != b.get(k)]
+    return [f'{k}: {a.get(k, "(none)")} -> {b.get(k, "(none)")}' for k in keys if not _same(k, a.get(k), b.get(k))]
 
 
 def compare(a_path, b_path, frame_ms=25):

@@ -19,7 +19,7 @@ anything - it is the user's own verdicts on their songs.
 ## Files in this skill
 | Path | What |
 |---|---|
-| `scripts/` | the toolkit, copied into `<show>/tooling/`: `setup.sh`, `separate.sh` (Demucs + Basic Pitch), `extract_events.py` (beats, hits, bars, summary), `lyrics.py` (Whisper words), `analyze_key.py`, `find_motif.py` (every repeat of a riff from one example), `seqlib.py` (effect helpers + .xsq writer), `validate_xsq.py`, `timeline.py`, `footage.py` (a real-show video lined up with its sequence), `layout_report.py`, `effect_examples.py`, `xl.py` (drive xLights: open, render, save, close), `fseq.py` + `layout.py` (decode a saved render at a model's channels), `snap.py` (a still of one prop from the render), `xsq_compare.py` (do two .xsq draw the same effects), `show_config.example.py`, `run` |
+| `scripts/` | the toolkit, copied into `<show>/tooling/`: `setup.sh`, `separate.sh` (Demucs + Basic Pitch), `extract_events.py` (beats, hits, bars, summary), `lyrics.py` (Whisper words), `analyze_key.py`, `find_motif.py` (every repeat of a riff from one example), `seqlib.py` (effect helpers + .xsq writer), `validate_xsq.py`, `timeline.py`, `footage.py` (a real-show video lined up with its sequence), `layout_report.py`, `effect_examples.py`, `xl.py` (drive xLights: open, render, save, close; push and pull files through `xl_mcp.py`), `xlapi.py` (the rules both use), `xl_mcp.py` (an MCP server run on the xLights machine when it isn't this one), `fseq.py` + `layout.py` (decode a saved render at a model's channels), `snap.py` (a still of one prop from the render), `xsq_compare.py` (do two .xsq draw the same effects), `show_config.example.py`, `run` |
 | `templates/build_template.py` | starting point for a song's generator |
 | `examples/<song>/` | eight real generators with their handoff notes (`build.py`, `notes.md`, `summary.txt`). They use the names in `show_config.example.py` (the show they were made for) |
 | `reference/pipeline.md` | setup, commands, analysis gotchas |
@@ -65,7 +65,8 @@ anything - it is the user's own verdicts on their songs.
    beats, hits, notes and words from the analysis - never hand-typed seconds.
 5. **Check.** `validate_xsq.py` must say 0 problems. Draw `timeline.py` images and look at them. Print the Story
    track against the lyrics. Only if the user has set up rendering through xLights and said you may use it
-   (`reference/pipeline.md`), and isn't working in xLights right now: open, render and save through `xl.py`, then
+   (`reference/pipeline.md`), and isn't working in xLights right now: open, render and save through `xl.py` (or,
+   when xLights is on another machine, `xl.py push` and the `xl_mcp.py` tools, then `xl.py pull` the `.fseq`), then
    `snap.py` the props that carry the story at the moments that matter, and fix what you see before handing off.
    Rebuild every other song afterwards if you touched `seqlib.py` (they should come out byte-identical) - other
    sequences depend on it.
