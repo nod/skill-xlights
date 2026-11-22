@@ -43,7 +43,9 @@ SHOW = STATE = XL = None                               # set in main()
 # Bump on every change an agent could notice: MINOR for a new tool, parameter or route, MAJOR for one removed or
 # changed incompatibly, PATCH for a fix. `status`, the MCP handshake, the startup line and --version report it.
 #   0.1.0  status, open_sequence, render, save, close, list_files; GET/PUT /files; push guard (xsq_compare)
-VERSION = '0.1.0'
+#   0.1.1  fix: a push path with '..' could put the server's bookkeeping copy outside its folders; list_files
+#          patterns could list files outside the show folder
+VERSION = '0.1.1'
 mcp = MCPServer('xlights', version=VERSION, instructions=(
     'Drives the xLights on the machine this server runs on, with safety rules (one render at a time, never discard '
     'unsaved edits). Use it only when the user has said you may drive their xLights, and not while they are working '
@@ -141,9 +143,12 @@ def close(discard: bool = False) -> str:
 @tool
 def list_files(pattern: str = 'seqs/**/*.xsq') -> str:
     """Files in the show folder matching a glob, with size and modification time (at most 200)."""
-    lines = []
+    if Path(pattern).is_absolute() or '..' in Path(pattern).parts:
+        raise Refused(f'{pattern}: a pattern must stay inside the show folder (no "..", not absolute)')
+    root, lines = SHOW.resolve(), []
     for p in sorted(SHOW.glob(pattern)):
-        if p.is_file() and not any(s.startswith('.') for s in p.relative_to(SHOW).parts):
+        r = p.resolve()                                 # a symlink may point out of the show folder
+        if p.is_file() and r.is_relative_to(root) and not any(s.startswith('.') for s in r.relative_to(root).parts):
             st = p.stat()
             lines.append(f"{rel_of(p)}  {st.st_size / 1e6:.2f} MB  "
                          f"{time.strftime('%Y-%m-%d %H:%M', time.localtime(st.st_mtime))}")
@@ -204,6 +209,7 @@ async def files(request):
     upload = None
     try:
         p = local(rel)
+        rel = rel_of(p)                                 # the checked path, with no '..': state copies use it too
         if request.method == 'GET':
             return FileResponse(p) if p.is_file() else PlainTextResponse(f'{rel}: no such file', status_code=404)
         incoming = STATE / 'incoming'
