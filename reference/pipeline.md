@@ -101,7 +101,7 @@ export XLIGHTS_MCP_URL=http://<xLights machine>:8765 XLIGHTS_MCP_TOKEN=<token>
 ./run xl.py pull ../seqs/<song>/<name>.fseq                         # back here, for snap.py
 #   MCP: close
 ```
-The show folder defaults to the one xLights has loaded (`--show` to set it). A push never replaces a file the user
+Which code a server runs: its startup line, the first line of `status` and the MCP handshake show `xl_mcp <hash>`, a hash of `xl_mcp.py`, `xlapi.py` and `xsq_compare.py`; `python3 xl_mcp.py --version` prints the hash of a copy. The show folder defaults to the one xLights has loaded (`--show` to set it). A push never replaces a file the user
 changed there: it refuses unless the file is still what the server last pushed, or an `.xsq` that an xLights save
 only normalised (`xsq_compare.py`), and it refuses the sequence xLights has open and an `.xsq` whose `.xbkp` is
 newer. `--force` replaces it anyway; every replaced file is backed up under `~/.cache/xlights-tooling/mcp/replaced/`

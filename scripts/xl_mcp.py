@@ -30,7 +30,8 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from starlette.responses import FileResponse, JSONResponse, PlainTextResponse
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
 from xlapi import XLights, Refused, NoAnswer, newer_autosave
 from xsq_compare import compare
 
@@ -38,7 +39,18 @@ PUSHABLE = {'.xsq', '.mp3', '.m4a', '.wav', '.ogg', '.flac', '.mp4', '.mov', '.p
             '.fs', '.glsl', '.xtiming'}
 SHOW = STATE = XL = None                               # set in main()
 
-mcp = MCPServer('xlights', instructions=(
+
+def code_version():
+    """A short hash of the code this server runs (this file, xlapi.py, xsq_compare.py): equal on any two machines
+    running the same code, git or not. `python3 xl_mcp.py --version` prints it without starting."""
+    h = hashlib.sha256()
+    for name in ('xl_mcp.py', 'xlapi.py', 'xsq_compare.py'):
+        h.update((HERE / name).read_bytes())
+    return h.hexdigest()[:10]
+
+
+VERSION = code_version()
+mcp = MCPServer('xlights', version=VERSION, instructions=(
     'Drives the xLights on the machine this server runs on, with safety rules (one render at a time, never discard '
     'unsaved edits). Use it only when the user has said you may drive their xLights, and not while they are working '
     'in it. Paths are relative to the show folder (seqs/<song>/<name>.xsq). Send a build over first with '
@@ -99,8 +111,8 @@ def tool(fn):
 def status() -> str:
     """Which show folder xLights has loaded, what sequence is open, and whether a command is running."""
     if BUSY.locked():
-        return f'busy: {DOING[0]}'
-    return one_at_a_time('status', XL.status)
+        return f'xl_mcp {VERSION}\nbusy: {DOING[0]}'
+    return f'xl_mcp {VERSION}\n' + one_at_a_time('status', XL.status)
 
 
 @tool
@@ -249,6 +261,7 @@ def main():
     ap.add_argument('--port', type=int, default=8765)
     ap.add_argument('--xlights-port', type=int, default=int(os.environ.get('XLIGHTS_PORT', '49913')))
     ap.add_argument('--state', type=Path, default=cache / 'mcp', help=f'token, pushes, backups (default {cache}/mcp)')
+    ap.add_argument('--version', action='version', version=f'xl_mcp {VERSION}')
     a = ap.parse_args()
 
     STATE = a.state
@@ -271,7 +284,7 @@ def main():
         tf.chmod(0o600)
 
     base = f'http://{lan_address() if a.host == "0.0.0.0" else a.host}:{a.port}'
-    print(f'xl_mcp: show folder {SHOW}; xLights at 127.0.0.1:{a.xlights_port}; listening on {a.host}:{a.port}\n'
+    print(f'xl_mcp {VERSION}: show folder {SHOW}; xLights at 127.0.0.1:{a.xlights_port}; listening on {a.host}:{a.port}\n'
           f'On the agent machine:\n'
           f'  claude mcp add --transport http xlights {base}/mcp --header "Authorization: Bearer {token}"\n'
           f'  export XLIGHTS_MCP_URL={base} XLIGHTS_MCP_TOKEN={token}     # for xl.py push / pull\n'
