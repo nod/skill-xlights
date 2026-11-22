@@ -1,9 +1,11 @@
 """Turn a song's stems + note CSVs into events.json (beat grid, bars, drum hits, notes, phrases) and a
 bar-by-bar summary for working out the song's structure.
 
-usage: extract_events.py <song> [--bpm=104] [--end=282.4] [--melody=vocals] [--loose]
+usage: extract_events.py <song> [--bpm=104] [--end=282.4] [--melody=vocals] [--loose] [--meter=3] [--phase=2]
   <song>     folder name under seqs/ (run separate.sh <song> first)
   --bpm      tempo hint when the tracker picks half/double time
+  --meter    beats per bar, when the detected one is wrong (it tells 3 from 4; 2/4 and 4/4 both come out as 4)
+  --phase    which beat (0-based) the first bar starts on, when you've found the real downbeat by ear
   --end      last musical moment in seconds (default: where the mix falls below -40 dB for good)
   --melody   stem whose notes drive the melody/voice motif (vocals, guitar, piano, other)
   --loose    the band plays without a click: beats follow the drummer (beat tracker) and drum hits keep their
@@ -11,7 +13,7 @@ usage: extract_events.py <song> [--bpm=104] [--end=282.4] [--melody=vocals] [--l
 
 Writes tooling/songs/<song>/events.json and summary.txt.
 """
-import json, sys
+import hashlib, json, sys
 import numpy as np, librosa
 from seqlib import song_dir, load_notes, cli_args, TOOLING
 import os
@@ -24,6 +26,15 @@ CACHE = os.environ.get('XLIGHTS_TOOLING_CACHE', os.path.expanduser('~/.cache/xli
 D = f'{CACHE}/stems/{SONG}'
 MELODY = opts.get('melody', 'vocals')
 sr, hop = 22050, 128
+
+# the stems must come from the mp3 that is there now (separate.sh records which one)
+stamp = os.path.join(D, 'source.txt')
+if os.path.exists(stamp):
+    digest, _, name = open(stamp).read().strip().partition('  ')
+    mp3 = TOOLING.parent / 'seqs' / SONG / name
+    if not mp3.exists() or hashlib.sha256(mp3.read_bytes()).hexdigest() != digest:
+        sys.exit(f'the stems in {D} were made from a different {name or "mp3"} than the one in seqs/{SONG}/ now: '
+                 f'run separate.sh {SONG} again')
 
 st = {s: librosa.load(f'{D}/{s}.wav', sr=sr)[0] for s in ('drums', 'bass', 'guitar', 'piano', 'other', 'vocals')}
 mix = sum(st.values()); dur = len(mix) / sr
@@ -88,15 +99,47 @@ print('grid drift (ms) per 20 s window:', ' '.join(f'{d:+d}' for _, d in drift))
 if max(abs(d) for _, d in drift) > 60 and not LOOSE:
     print('WARNING: drift over 60 ms - the song may not be on a click; check the beat track by ear.')
 
-# ---------------------------------------------------------------- bar phase: harmonic change + kick
+# ---------------------------------------------------------------- meter and bar phase: harmonic change + kick
 harm = st['bass'] + st['guitar'] + st['piano'] + st['other'] + st['vocals']
 C = librosa.feature.chroma_cqt(y=harm, sr=sr, hop_length=512)
 Cs = librosa.util.sync(C, librosa.time_to_frames(beats, sr=sr, hop_length=512), aggregate=np.median)
 nov = np.r_[0, np.linalg.norm(np.diff(librosa.util.normalize(Cs, axis=0), axis=1), axis=0)][:len(beats)]
 kb = np.array([at(K, b) for b in beats])
-score = [nov[p::4].mean() + 0.5 * kb[p::4].mean() for p in range(4)]
-PHASE = int(np.argmax(score))
-print('downbeat phase scores', np.round(score, 3), '-> first downbeat at beat', PHASE)
+accent = nov + 0.5 * kb                         # chords change and the kick lands on the downbeat
+
+def periodic_fit(x, m):
+    """How much of the beat-to-beat accent pattern repeats every m beats (0..1)."""
+    n = len(x) // m * m
+    if n < 4 * m: return 0.0
+    x = x[:n] - x[:n].mean(); bars = x.reshape(-1, m)
+    return max(0.0, 1 - float(((bars - bars.mean(0)) ** 2).mean()) / max(float((x ** 2).mean()), 1e-12))
+FIT = {m: round(periodic_fit(accent, m), 3) for m in (3, 4)}
+# Songs with a steady beat measure 0.09-0.40 for their own meter and ~0 for the other. A drumless, rubato waltz
+# can lean the right way at far lower values, or flip with the beat grid, so only a clear case decides.
+hi, lo = (3, 4) if FIT[3] > FIT[4] else (4, 3)
+CLEAR = FIT[hi] >= 0.05 and FIT[hi] >= 3 * FIT[lo]
+if 'meter' in opts:
+    METER = int(opts['meter'])
+else:
+    METER = hi if CLEAR else 4
+print(f'meter: accents repeat every 3 beats {FIT[3]:.3f}, every 4 beats {FIT[4]:.3f} -> {METER} beats per bar'
+      + (' (--meter)' if 'meter' in opts else ''))
+if 'meter' not in opts and not CLEAR:
+    print(f'WARNING: no clear meter (it leans {hi}, too weakly to trust; often the beat grid itself is off); '
+          f'assuming 4. Count a bar by ear and pass --meter=3 for a waltz.')
+if METER == 3 and 60 / PER > 150:
+    print(f'note: 3 beats at {60 / PER:.0f} BPM may be 6/8 counted in eighths; then a bar here is half a real bar.')
+
+score = [float(accent[p::METER].mean()) for p in range(METER)]
+order = sorted(range(METER), key=lambda p: -score[p])
+PHASE = int(opts['phase']) % METER if 'phase' in opts else order[0]
+margin = (score[order[0]] - score[order[1]]) / max(score[order[0]], 1e-9)
+print('downbeat phase scores', np.round(score, 3), '-> first downbeat at beat', PHASE,
+      '(--phase)' if 'phase' in opts else f'(runner-up beat {order[1]}, {margin:.0%} behind)')
+if 'phase' not in opts and margin < 0.15:
+    print(f'WARNING: the downbeat is a guess: beat {order[1]} scores almost as well as beat {order[0]}. Listen for '
+          f'where bar 1 really starts (the big hits and chord changes land there) and pass --phase if it is not '
+          f'beat {PHASE}.')
 
 # ---------------------------------------------------------------- hits on the 16th grid
 grid = [(b + j * PER / 4, i, j) for i, b in enumerate(beats) for j in range(4)]
@@ -141,18 +184,19 @@ phrases = [p for p in phrases if p[2] >= 2]
 # how hard each hit was (0..1), for effects that scale with the drums
 kick_v = [round(min(at(K, g), 1.0), 3) for g in kick]
 snare_v = [round(min(at(Sn, g), 1.0), 3) for g in snare]
-json.dump(dict(song=SONG, dur=dur, end=END, t0=T0, per=PER, phase=PHASE, loose=LOOSE, beats=beats.tolist(), kick=kick,
+json.dump(dict(song=SONG, dur=dur, end=END, t0=T0, per=PER, phase=PHASE, meter=METER, phase_scores=score,
+               meter_fit=FIT, loose=LOOSE, beats=beats.tolist(), kick=kick,
                snare=snare, cym=cym, off=off, kick_v=kick_v, snare_v=snare_v, vox=mel, melody_stem=MELODY, bass=bass, phrases=phrases),
           open(HERE / 'events.json', 'w'))
 
 # ---------------------------------------------------------------- bar-by-bar summary
-BAR = 4 * PER; B1 = T0 + PHASE * PER
-STARTS = list(beats[PHASE::4]) if LOOSE else [B1 + n * BAR for n in range(int((END - B1) / BAR) + 1)]
+BAR = METER * PER; B1 = T0 + PHASE * PER
+STARTS = list(beats[PHASE::METER]) if LOOSE else [B1 + n * BAR for n in range(int((END - B1) / BAR) + 1)]
 def db(y, a, b):
     seg = y[int(max(a, 0) * sr):int(b * sr)]
     return 20 * np.log10(np.sqrt((seg ** 2).mean()) + 1e-6) if len(seg) else -99
 cnt = lambda lst, a, b: sum(1 for x in lst if a <= x < b)
-lines = [f'{SONG}: {60 / PER:.2f} BPM, ' + (f'bars follow the beat tracker (events.json beats[{PHASE}::4])' if LOOSE else
+lines = [f'{SONG}: {60 / PER:.2f} BPM, {METER} beats per bar, ' + (f'bars follow the beat tracker (events.json beats[{PHASE}::{METER}])' if LOOSE else
          f'bar n starts at {B1:.3f} + (n-1) * {BAR:.4f} s'),
          'bar   time | drums  bass   gtr piano other   vox | kick snare cym off | melody notes']
 for n, a in enumerate(STARTS):

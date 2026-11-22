@@ -17,12 +17,13 @@ ARGS = cli_args()
 OUT = ARGS[0] if ARGS else str(SHOW / 'seqs' / SONG / f'{Path(SONG).name}.xsq')
 ev = json.load(open(HERE / 'events.json'))
 BEATS, PH, PER = ev['beats'], ev['phase'], ev['per']
+M = ev.get('meter', 4)                  # beats per bar (3 for a waltz)
 DUR, END = round(ev['dur'], 3), ev['end']
-BAR = 4 * PER
+BAR = M * PER
 
 def B(n):
     """start of 1-based bar n (the bars of summary.txt). Works for click (even) and --loose (uneven) beats."""
-    i = PH + 4 * (n - 1)
+    i = PH + M * (n - 1)
     return BEATS[i] if i < len(BEATS) else BEATS[-1] + (i - len(BEATS) + 1) * PER
 
 # ---------------------------------------------------------------- single props, left to right (for characters)
@@ -104,7 +105,7 @@ sq.tracks = [
                if q(min(e, st[i + 1][1]) if i + 1 < len(st) else e) > q(s)]),
     ('Lyrics', marks([s for w, s, e in WORDS], [w for w, s, e in WORDS], maxlen=1.2)),
     ('Bars', marks([B(n) for n in range(1, nbars)], [str(n) for n in range(1, nbars)], end=END)),
-    ('Beats', marks(BEATS, [str((i - PH) % 4 + 1) for i in range(len(BEATS))], end=END)),
+    ('Beats', marks(BEATS, [str((i - PH) % M + 1) for i in range(len(BEATS))], end=END)),
     ('Kick', marks(KICKS, maxlen=PER / 2)), ('Snare', marks(SNARES, maxlen=PER / 2)),
 ]
 sq.write(OUT, dict(song='<title>', artist='<artist>', album='', media=media_path(SONG, MP3),
