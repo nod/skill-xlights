@@ -61,6 +61,9 @@ xLights rewrites the whole file on every Save, edited or not:
 - times snap to the 25 ms frame grid (an off-grid 5680 becomes 5675);
 - settings and palette strings are normalised (keys re-ordered, values reformatted);
 - `EffectDB` and `ColorPalettes` are rebuilt and re-indexed, so every `ref` and `palette` number can change.
+- seen on a real 2026.19 save: a value-curve point of 0 is left out (`P1=0` disappears), some empty settings are
+  written out (`E_FILEPICKERCTRL_SVGFile=`), and absolute file paths inside the show folder become relative
+  (`/Users/you/show/Shaders/x.fs` -> `Shaders/x.fs`). `xsq_compare.py` treats all three as the same.
 
 So the bytes differ after any Save, and a hash (`.build_hashes.json`) cannot tell a hand edit from a plain Save. To
 tell them apart, compare by content: per element and layer, the list of (effect name, start, end) with one frame
