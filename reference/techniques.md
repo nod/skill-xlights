@@ -39,10 +39,46 @@ H-expand / H-compress bursts; smooth fill climbs; swinging 3D spirals; a charact
 `SKY_KEYS`); the VU waveform; Butterfly water/aurora; starfields (Twinkle in the top part).
 
 ## Pixel art on matrices
-On effects in pixel-exact subbuffers on the single matrix models (examples/bdw_inchrist `art()`, `heart()`,
-`crown()`): a 6x5 heart, a crown. Edges just below pixel boundaries. Beat it with brightness (lub-dub: 100→55 for
-0.17 s, 90→25 for 0.28 s, rest). Needs one layer per row-segment; keep resting copies on separate layers from the
-beating ones or the beats clip them. Effect counts get big - fine for xLights, but don't go wild.
+**Prefer pictures** (examples/aggie_war_hymn, examples/tso_wizards_winter): draw the art as a bitmap (rows of
+characters, top first), write a PNG exactly the matrix's size with `write_png()` (6x44 for a Vert; transparent
+where nothing is lit), and show it with `pictures(model, ..., scaling='No Scaling')` on the single model. One effect
+per picture, any number of colours, pixel-exact (checked on renders), and it composites over the group background.
+Fade with `fadein`/`fadeout`; animate by switching pictures (a spinning snowflake = two shapes alternating every
+0.1 s, drifting a row down every 0.14 s; 80 tiny PNGs are fine). Push the PNGs with the sequence.
+
+The older way still works under Normal blending: On effects in pixel-exact subbuffers on the single models
+(examples/bdw_inchrist `art()`, `heart()`, `crown()`), edges just below pixel boundaries, one layer per rectangle.
+Under the old `Max` default only the first rectangle rendered (xsq-format.md "Layer blending").
+
+**Logos and images on a row of narrow matrices:** a logo stretched across the group shows as nine thin vertical
+slices and doesn't read, still or scrolled (tested with the Texas A&M logo). Redraw it as pixel art made for the
+panels: the A&M logo became an A on one Vert, the big T's bar across the top of five Verts with the stem down the
+middle one, the M on the fifth, keeping the file's two colours and its white bevel lines. Big letters one per
+panel (6x14: a 6x7 font stretched x2) read very well: "TEXAS A&M" is nine characters on nine Verts.
+
+## The orb (examples/tso_wizards_winter)
+"Some sphere or orb that dances across the scene occasionally would feel lively." A radial gradient
+(white core -> cyan -> blue -> black) in a subbuffer on AllModels, moved every 50 ms (`seqlib.orb`), Additive,
+AllModels as the last row. On the whole-yard buffer the props it passes light up round it: low y = the arches and
+the bottom of the wall, y 50 = the middle of the wall and the spirals. Dances that worked: hopping arch to arch on
+the beat (arcs between landing points), spiralling up during a build then a ring burst, circling the yard during a
+whirl, drifting on a slow sine through falling snow, bouncing off every snare, rocketing up into a big moment,
+twin orbs (cyan, magenta) hopping mirror-image, and alone in a silence, swelling, until the last hit bursts it.
+"Occasionally" = about a dozen appearances in three minutes, each a few bars.
+
+## Instrumental and band-only recordings
+No vocals (Whisper finds 0 words, the vocal stem sits at -50 dB): the crowd still knows the words. Find the form
+from the tune: a beat-synchronous chroma self-similarity of the melody stem shows the repeats (a verse repeating at
+a 68-beat lag, two 28-beat halves, a final strain in a new key), the loudness envelope shows the band's stops
+(1.5 s of silence after a stab = where the crowd shouts "SHORT!"), and phrase boundaries come every 8 beats. Map
+the known lines onto the phrases, then ask the user to confirm the map in one question (times + which line) before
+building on it. Put the words in a `Words` timing track so they can check it in xLights.
+
+## Call and response as weather (examples/tso_wizards_winter)
+Wizards in Winter's 22 stop bars: the band's stab FREEZES the yard (an icy ring, icicles growing down from the top
+of every panel), then each note of the piano's answer is a snowflake picture on the wall, hopping panel to panel
+with the run, high notes high. Scale the height to each run's own pitch range, not the song's: with a global range
+the flakes all landed near the bottom.
 
 ## Words on a matrix (examples/bdw_joy)
 A bold 6x7 pixel font (`FONT`), letters stacked top to bottom on a tall 6x44 panel - a vertical marquee sign. Each
@@ -75,3 +111,6 @@ font across the whole canvas (what the user's older sequences do).
 - Quiet passages get *less* light: darkness, one character, the song's voice. The contrast is what makes the
   chorus land.
 - End with one light left (the user's show: the Nativity spot is always the last light out).
+- A team's or a rival's colour is a story device: in the Aggie War Hymn burnt orange appears only for t.u. and is
+  always swept off, burned or sawed away; the school's maroon and white carry everything else. Gold only for the
+  Aggie Ring. A crowd's shout into the band's silence ("SHORT!") is the word alone on a black yard.

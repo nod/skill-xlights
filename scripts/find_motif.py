@@ -21,7 +21,8 @@ opts = {a[2:].split('=')[0]: a.split('=', 1)[1] for a in sys.argv[1:] if a.start
 song, specs = args[0], [a for a in args[1:] if '=' in a]
 stem, lo, nnotes = opts.get('stem', 'other'), float(opts.get('min', 0.5)), opts.get('notes')
 CACHE = os.environ.get("XLIGHTS_TOOLING_CACHE", os.path.expanduser("~/.cache/xlights-tooling"))
-path = (next((SHOW / 'seqs' / song).glob('*.mp3')) if stem == 'mix' else f'{CACHE}/stems/{song}/{stem}.wav')
+path = (next(p for ext in ('*.mp3', '*.wav') for p in sorted((SHOW / 'seqs' / song).glob(ext))) if stem == 'mix'
+        else f'{CACHE}/stems/{song}/{stem}.wav')
 
 sr, hop = 22050, 256
 y, _ = librosa.load(str(path), sr=sr, mono=True)

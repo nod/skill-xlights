@@ -10,6 +10,14 @@ treats a tree-trunk wrap differently from a free-standing matrix wall.
 # None = this folder. The lol2026 show is generated on Linux but rendered on a Mac:
 MEDIA_ROOT = '/Users/you/xlights/show'
 
+# optional: the folder under the show that holds the song folders, if it isn't 'seqs' (e.g. 'seq2026'). The media
+# path written into each sequence uses it; on the agent's copy of the show, symlink seqs -> it for the scripts.
+# SEQS_DIR = 'seq2026'
+
+# optional: how layers blend. Unset (None) = xLights' Normal, the default since Max showed only the top layer on
+# xLights 2026.19 (reference/xsq-format.md "Layer blending"). Set 'Max' only if your xLights renders it right.
+# LAYER_BLEND = 'Max'
+
 # the rows the generator writes, top to bottom in the sequencer. Groups are disjoint sets of models, so effects on
 # different rows never fight; single models only where no group covers them.
 ELEMENTS = ['AllModels', 'Verts', 'trees', 'arches_big', 'pix-evens', 'pix-odds', 'Spiral Trees',

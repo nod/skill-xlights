@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Split a song into instrument stems (Demucs) and transcribe the pitched stems to notes (Basic Pitch).
-#   usage: separate.sh <song>      where seqs/<song>/ holds the song's .mp3
+#   usage: separate.sh <song>      where seqs/<song>/ holds the song's .mp3 (or .wav)
 # Stems (large) go to the cache; note CSVs (small) go to tooling/songs/<song>/midi/.
 set -euo pipefail
 SONG="$1"
@@ -8,7 +8,10 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 SHOW="$(dirname "$HERE")"
 CACHE="${XLIGHTS_TOOLING_CACHE:-$HOME/.cache/xlights-tooling}"
 V="$CACHE/venvs"
-MP3="$(ls "$SHOW/seqs/$SONG"/*.mp3 | head -1)"
+# the song's audio: an .mp3 (or a .wav) in seqs/<song>/. `|| true`: under pipefail, ls failing on a missing
+# *.mp3 would end the script silently with nothing separated.
+MP3="$( (ls "$SHOW/seqs/$SONG"/*.mp3 "$SHOW/seqs/$SONG"/*.wav 2>/dev/null || true) | head -1)"
+[ -n "$MP3" ] || { echo "no .mp3 or .wav in $SHOW/seqs/$SONG" >&2; exit 1; }
 STEMS="$CACHE/stems/$SONG"
 MIDI="$HERE/songs/$SONG/midi"
 mkdir -p "$STEMS" "$MIDI"
