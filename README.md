@@ -63,7 +63,9 @@ Start Claude Code in your xLights show folder (the one with `xlights_rgbeffects.
   it and read the render back (`xl.py`, `snap.py`; `reference/pipeline.md`, "Render, save, read back"). It does
   that only when you ask. The API has no password, so read the warning there before you open the port. When xLights
   runs on another machine, run `xl_mcp.py` there instead: an MCP server with a token that drives xLights locally,
-  plus `xl.py push` / `pull` to move sequences and renders between the machines.
+  plus `xl.py push` / `pull` to move sequences and renders between the machines.  There's one requirement for the
+  mcp but it's easier to just run `uv run xl_mcp.py --show=/PATH/TO/SHOWDIR`.  That will generate a token your AI
+  will use.
 - **bash** and **Python 3** (any recent version; it's only used to bootstrap).
 - **ffmpeg**, which Demucs uses to read mp3s. On Debian/Ubuntu: `apt install ffmpeg`. On macOS: `brew install ffmpeg`.
 
