@@ -9,7 +9,11 @@ So a hash cannot tell a plain Save from a hand edit. This compares, per element 
 the list of (effect, start, end), with one frame of tolerance on the times, and then each paired effect's settings
 and palette as key=value maps with every number compared as a number and every colour case-folded. What a save
 also does is read as the same: a value-curve point of 0 left out, an empty setting written out, a file path
-inside the show folder made relative, and an older file's E_FILEPICKER_<x>_Filename renamed E_TEXTCTRL_<x>_Filename.
+inside the show folder made relative, an older file's E_FILEPICKER_<x>_Filename renamed E_TEXTCTRL_<x>_Filename,
+an ampersand inside a setting escaped ('&' -> '&amp;'), and on a single model (not a group) a "Per Model ..." buffer style shortened ("Per Model Per Preview" -> "Per
+Preview", "Per Model Default" -> "Default": a single model has no members, so they mean the same; seen on every
+2026.19 save of a generated sequence). That one needs the show's layout to tell groups from models; without it a
+changed buffer style still reads as a change.
 
 It errs towards "different": a key that xLights adds or drops on save, a default it writes out, reads as a change.
 That makes the builder refuse and an agent ask, which is the safe way to be wrong. The <head> (media, duration)
@@ -23,7 +27,9 @@ HEX = re.compile(r'#[0-9a-fA-F]{6}\b')
 
 
 def _norm_value(v):
-    """Numbers to one spelling (1.50 -> 1.5, 7.0 -> 7), colours to upper case."""
+    """Numbers to one spelling (1.50 -> 1.5, 7.0 -> 7), colours to upper case, '&amp;' as '&' (a 2026 save escapes
+    the ampersand inside a setting: 'Falling & Accumulating' -> 'Falling &amp; Accumulating')."""
+    v = v.replace('&amp;', '&')
     parts = HEX.split(v.strip())                       # numbers between the colours, never inside one
     colours = [c.upper() for c in HEX.findall(v.strip())]
     nums = [NUM.sub(lambda m: f'{round(float(m.group(0)), 4):g}', p) for p in parts]
@@ -61,8 +67,25 @@ def _same(key, a, b):
     return a.endswith('/' + b) or b.endswith('/' + a)
 
 
+PER_MODEL = {'Per Model Per Preview': 'Per Preview', 'Per Model Default': 'Default'}
+
+
+def _groups(path):
+    """the model-group names of the show folder above `path`, or None if there is no layout to read"""
+    from pathlib import Path
+    for d in Path(path).resolve().parents:
+        f = d / 'xlights_rgbeffects.xml'
+        if f.exists():
+            try:
+                return {g.get('name') for g in ET.parse(f).getroot().iter('modelGroup')}
+            except ET.ParseError:
+                return None
+    return None
+
+
 def _layers(path):
     """{(element type, element name, sub-path, layer no): [(name or label, start, end, settings, palette), ...]}"""
+    groups = _groups(path)
     r = ET.parse(path).getroot()
     db = [e.text or '' for e in (r.find('EffectDB') if r.find('EffectDB') is not None else [])]
     pals = [e.text or '' for e in (r.find('ColorPalettes') if r.find('ColorPalettes') is not None else [])]
@@ -81,8 +104,12 @@ def _layers(path):
                     ref, pal = e.get('ref'), e.get('palette')
                     settings = db[int(ref)] if ref is not None and ref.isdigit() and int(ref) < len(db) else (e.text or '')
                     palette = pals[int(pal)] if pal is not None and pal.isdigit() and int(pal) < len(pals) else ''
+                    st = _settings(settings)
+                    if (groups is not None and el.get('type') == 'model' and el.get('name') not in groups
+                            and st.get('B_CHOICE_BufferStyle') in PER_MODEL):      # a save shortens these on a model
+                        st['B_CHOICE_BufferStyle'] = PER_MODEL[st['B_CHOICE_BufferStyle']]
                     effects.append((e.get('name') or e.get('label') or '', int(float(e.get('startTime', 0))),
-                                    int(float(e.get('endTime', 0))), _settings(settings), _settings(palette)))
+                                    int(float(e.get('endTime', 0))), st, _settings(palette)))
                 if effects:
                     out[(el.get('type'), el.get('name'), here_)] = sorted(effects, key=lambda f: (f[1], f[2], f[0]))
                 walk(child, here_)

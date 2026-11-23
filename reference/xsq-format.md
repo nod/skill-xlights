@@ -15,10 +15,27 @@ sequence from the user's show (the newest one made on the current layout) and co
 ```
 - Times are integer **milliseconds on the 25 ms frame grid** (`q()` rounds seconds to it). Within one layer effects
   must not overlap (`Seq.resolve()` clips earlier ones). Nothing may run past the audio (`write()` trims).
-- **Layer 0 is the top.** Layers blend downward with `T_CHOICE_LayerMethod` - `seqlib` sets `Max` on every layer
-  but the last so stacked effects add up instead of covering each other.
+- **Layer 0 is the top.** Layers blend downward with `T_CHOICE_LayerMethod` (see "Layer blending" below; seqlib
+  writes no key = Normal, unless show_config sets `LAYER_BLEND`).
 - `ModelBlending="true"`: effects on a group and effects on its member models blend. This is what lets a character
   run on single models on top of group backgrounds (confirmed on a real render - the sprite in Wizards in Winter).
+
+## Layer blending (verified with test renders on xLights 2026.19, lol2026 show, 2026-11-21)
+- **`Max` showed only the top layer.** With `Max` on the upper layer, a Morph over a Butterfly rendered the Morph
+  alone; four stacked subbuffer rectangles rendered only layer 0; a subbuffer effect blanked everything outside its
+  subbuffer. The user's saved renders of older Max-built songs show the same (Joy's pixel letters came out as one
+  bar). seqlib's old default was Max; it is now opt-in (`LAYER_BLEND = 'Max'` in show_config).
+- **`Normal`** (no key, xLights' default) composites: a layer's lit pixels cover the layers below, its unlit and
+  outside-the-subbuffer pixels show through. A dim colour is still lit: an On fading 100 -> 0 covers what's under it
+  all the way down (it darkens the background, it doesn't reveal it).
+- **`Additive`** composites too and adds light: use it for flashes, pulses and glows over a background, and for
+  anything drawn with a gradient that ends in black (a radial orb) - under Normal its black rim blanks the props
+  beneath it, under Additive it adds nothing.
+- **Rows:** where two rows cover the same pixels, the row LOWER in the element list wins (Normal-style: its lit
+  pixels cover). An AllModels On over the arches lost to an arches_big On below it. Put an overlay that must stay
+  on top (an orb on AllModels) in the LAST row; draw single-model characters in rows after their group's row.
+- When in doubt, build a 20-second diagnostic sequence (one 2 s slot per question), render it through xLights and
+  read the frames back (`wall.py`, `litstats.py`): it takes minutes and settles what the docs can't.
 - Timing tracks: `<Element type="timing">` with `<Effect label startTime endTime/>` marks. Add generously -
   Sections, Story (what the lights are saying), Lyrics, Bars, Beats, Kick, Snare, note tracks. They're how the user
   finds things in xLights.
@@ -64,6 +81,11 @@ xLights rewrites the whole file on every Save, edited or not:
 - seen on a real 2026.19 save: a value-curve point of 0 is left out (`P1=0` disappears), some empty settings are
   written out (`E_FILEPICKERCTRL_SVGFile=`), and absolute file paths inside the show folder become relative
   (`/Users/you/show/Shaders/x.fs` -> `Shaders/x.fs`). `xsq_compare.py` treats all three as the same.
+- also seen (2026.19): on a single model, `B_CHOICE_BufferStyle=Per Model Per Preview` is saved as `Per Preview` and
+  `Per Model Default` as `Default` (a single model has no members - seqlib's `bounce()` on a single stick writes the
+  long form); an `&` inside a setting is saved as `&amp;` (`Falling & Accumulating`). Before xsq_compare knew
+  these, every saved build looked hand-edited (454 "differences" in one sequence) and the push guard refused it.
+  xsq_compare now reads both as the same; the buffer-style rule needs the show's layout to tell models from groups.
 
 So the bytes differ after any Save, and a hash (`.build_hashes.json`) cannot tell a hand edit from a plain Save. To
 tell them apart, compare by content: per element and layer, the list of (effect name, start, end) with one frame

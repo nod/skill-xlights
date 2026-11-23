@@ -15,7 +15,14 @@ Gotchas found the hard way (setup.sh handles them):
 - if `uv` has a global `exclude-newer`, very new packages may not resolve; pin older versions.
 
 ## Per song
-The mp3 goes in `seqs/<song>/` (song keys may contain a slash: `new/owl`).
+The mp3 (or a .wav) goes in `seqs/<song>/` (song keys may contain a slash: `new/owl`).
+- **The show keeps its sequences somewhere else** (e.g. `seq2026/`): set `SEQS_DIR = 'seq2026'` in show_config (the
+  media path written into the sequence uses it) and, on the agent's copy of the show, `ln -s seq2026 seqs` so the
+  analysis scripts find `seqs/<song>`. `xl.py push/pull` resolve the symlink, so they send the right path.
+- **The agent's machine has no synced copy of the show**: `xl_mcp.py`'s `GET /files/<path>` serves any (non-hidden)
+  file of the show folder; fetch `xlights_rgbeffects.xml`, `xlights_networks.xml`, the song's folder and the other
+  `.xsq` files you want to learn from into a local mirror, install `tooling/` there, and push results back. Re-fetch
+  the layout whenever the user says they changed it (diff the model positions: a moved panel changes `VERT_X`).
 ```sh
 ./separate.sh <song>                     # Demucs htdemucs_6s stems + Basic Pitch notes; prints each stem's loudness
 ./run extract_events.py <song>           # beats, bars, drum hits, notes -> songs/<song>/events.json + summary.txt
@@ -145,6 +152,21 @@ them:
 
 What it buys: whether a motif reads, whether the right prop lit, and what colour actually came out, settled from the
 file instead of from the user's description. The user's eye still has the last word; it just starts later.
+
+Looking at a render (all read-only, from `tooling/`):
+```sh
+./run wall.py --fseq ../seqs/<song>/<name>.fseq --at 49.9,75.4      # the CANVAS panels side by side, street order
+./run yard.py --fseq ../seqs/<song>/<name>.fseq --at 1.6,52         # the whole yard (approximate geometry, exact colours)
+./run litstats.py ../seqs/<song>/<name>.fseq 20,40 "arch-big-1,Spiral Tree 3,tree-1"   # lit nodes + mean colour per prop
+```
+Habits that caught real problems: snap 6-10 moments that carry the story, then measure every prop type at a few
+times with `litstats.py` (a prop that sits at 0 or at 12/255 for a whole section shows up at once); sample
+strictly inside an effect's span (check the time from the build, not from memory). For a new or risky technique
+(a blend mode, an orb, pictures) render a 20 s diagnostic sequence first: open, render and save take seconds.
+- A save rewrites the `.xsq`; the next push of a rebuilt file is accepted when the save only normalised it
+  (xl_mcp 0.1.4 / xsq_compare: buffer styles on single models, escaped ampersands). If the server runs an older
+  copy, a push can be refused as "edited in xLights" when it wasn't: compare the pulled file with `xsq_compare.py`
+  yourself before forcing, and never force over a sequence the user may have edited - write a new file beside it.
 
 The builder keeps a hash of each file it wrote in `.build_hashes.json` and refuses to overwrite a sequence that
 changed since (the user edited it in xLights). A changed hash can also mean the user only *saved*: xLights rewrites

@@ -19,9 +19,9 @@ anything - it is the user's own verdicts on their songs.
 ## Files in this skill
 | Path | What |
 |---|---|
-| `scripts/` | the toolkit, copied into `<show>/tooling/`: `setup.sh`, `separate.sh` (Demucs + Basic Pitch), `extract_events.py` (beats, hits, bars, summary), `lyrics.py` (Whisper words), `analyze_key.py`, `find_motif.py` (every repeat of a riff from one example), `seqlib.py` (effect helpers + .xsq writer), `validate_xsq.py`, `timeline.py`, `footage.py` (a real-show video lined up with its sequence), `layout_report.py`, `effect_examples.py`, `xl.py` (drive xLights: open, render, save, close; push and pull files through `xl_mcp.py`), `xlapi.py` (the rules both use), `xl_mcp.py` (an MCP server run on the xLights machine when it isn't this one), `fseq.py` + `layout.py` (decode a saved render at a model's channels), `snap.py` (a still of one prop from the render), `xsq_compare.py` (do two .xsq draw the same effects), `show_config.example.py`, `run` |
+| `scripts/` | the toolkit, copied into `<show>/tooling/`: `setup.sh`, `separate.sh` (Demucs + Basic Pitch), `extract_events.py` (beats, hits, bars, summary), `lyrics.py` (Whisper words), `analyze_key.py`, `find_motif.py` (every repeat of a riff from one example), `seqlib.py` (effect helpers + .xsq writer), `validate_xsq.py`, `timeline.py`, `footage.py` (a real-show video lined up with its sequence), `layout_report.py`, `effect_examples.py`, `xl.py` (drive xLights: open, render, save, close; push and pull files through `xl_mcp.py`), `xlapi.py` (the rules both use), `xl_mcp.py` (an MCP server run on the xLights machine when it isn't this one), `fseq.py` + `layout.py` (decode a saved render at a model's channels), `snap.py` (a still of one prop from the render), `wall.py` (the canvas panels side by side from the render), `yard.py` (the whole yard from the render), `litstats.py` (lit nodes + mean colour per prop at given times), `xsq_compare.py` (do two .xsq draw the same effects), `show_config.example.py`, `run` |
 | `templates/build_template.py` | starting point for a song's generator |
-| `examples/<song>/` | eight real generators with their handoff notes (`build.py`, `notes.md`, `summary.txt`). They use the names in `show_config.example.py` (the show they were made for) |
+| `examples/<song>/` | ten real generators with their handoff notes (`build.py`, `notes.md`, `summary.txt`). They use the names in `show_config.example.py` (the show they were made for); `aggie_war_hymn` and `tso_wizards_winter` use that show's 2026-11 layout (`examples/aggie_war_hymn/show_config.py`) and are the reference for Normal blending, picture pixel art and the orb |
 | `reference/pipeline.md` | setup, commands, analysis gotchas |
 | `reference/xsq-format.md` | the file format: layers, blending, subbuffers, palettes, colour curves, value curves |
 | `reference/effects.md` | each effect: what it looks like, the helper, verified or not |
@@ -88,6 +88,16 @@ anything - it is the user's own verdicts on their songs.
 - **Contrast.** Quiet words get less light; the stop before a chorus is darkness and one small thing.
 - **No amber unless asked**; gold sparingly, for meaningful moments.
 - **Don't overwrite their edits**: the builder refuses if a sequence changed since it was generated - ask first.
+  When they can't be asked (they're asleep and said "make your best guess"), write the new build as a new file
+  beside theirs (`<song>_v2.xsq`, `<song>_winter.xsq`) and say so.
+- **Pixel art and logos as pictures**, one PNG per panel (`write_png` + `pictures`); a wide image across the panels
+  doesn't read - redraw it for them (`reference/techniques.md`).
+
+## Know your xLights before you build (2026.19 on the lol2026 show)
+- **Layer blend `Max` shows only the top layer** - seqlib now writes Normal (lit covers, unlit shows through) and
+  Additive for glows; rows lower in the element list cover rows above them (`reference/xsq-format.md`).
+- A model's **dimming curve** is in the render (the spirals' -70 % turns maroon to nothing); check `layout_report`.
+- If a technique is new or the xLights version is, render a 20 s diagnostic sequence and read it back first.
 
 ## Working with the user
 - They see the render; you don't. Lead with what they will see, in their words, and end with 2-5 concrete things to

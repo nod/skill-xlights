@@ -47,7 +47,9 @@ SHOW = STATE = XL = None                               # set in main()
 #          patterns could list files outside the show folder
 #   0.1.2  fix: render refuses when no sequence is open (xLights blocks on a dialog otherwise)
 #   0.1.3  .json files can be pushed (shader sidecars), so a song folder can travel complete
-VERSION = '0.1.3'
+#   0.1.4  push guard (xsq_compare): a save's 'Per Model ...' -> plain buffer style on a single model and its
+#          '&' -> '&amp;' inside a setting read as unchanged (they made every saved build look hand-edited)
+VERSION = '0.1.4'
 mcp = MCPServer('xlights', version=VERSION, instructions=(
     'Drives the xLights on the machine this server runs on, with safety rules (one render at a time, never discard '
     'unsaved edits). Use it only when the user has said you may drive their xLights, and not while they are working '

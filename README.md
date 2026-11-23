@@ -35,7 +35,7 @@ On the first start, it will install some dependencies.
 | `SKILL.md` | The instructions the agent loads: workflow, design rules, how to work with you |
 | `scripts/` | The toolkit the agent copies into your show folder as `tooling/` |
 | `templates/build_template.py` | Starting point for a song's generator |
-| `examples/<song>/` | Eight real generators, each with handoff notes and the analysis summary they were built from |
+| `examples/<song>/` | Ten real generators, each with handoff notes and the analysis summary they were built from |
 | `reference/` | The pipeline, the `.xsq` file format, effect settings, design techniques, case studies, untried ideas |
 
 Audio files and lyrics are not included. Bring your own mp3s.
@@ -104,6 +104,7 @@ Only the listening step needs the heavy packages. The scripts that write and che
 | `xl.py`, `xlapi.py` | Python only, plus `show_config.py` (`MEDIA_ROOT`); xLights 2026.17+ with its API port on |
 | `xl_mcp.py` | runs on the xLights machine: Python 3.10+ and the `mcp` package (`uv run xl_mcp.py` installs it), plus `xlapi.py` and `xsq_compare.py` beside it |
 | `fseq.py`, `layout.py`, `snap.py` | zstandard (setup.sh installs it); `snap.py` also Pillow, which matplotlib brings |
+| `wall.py`, `yard.py`, `litstats.py` | the same as `snap.py` (they use it) |
 | `xsq_compare.py` | Python only |
 
 `seqlib.py` imports `show_config.py` when it loads. Every script that uses `seqlib` fails until that file
@@ -180,6 +181,9 @@ cd <show>/tooling
 ./run xl.py open ../seqs/mysong/mysong.xsq && ./run xl.py render && ./run xl.py save   # through xLights' API
 ./run xl.py push ../seqs/mysong/mysong.xsq       # or, with xl_mcp.py on the xLights machine: push, then its MCP tools
 ./run snap.py --fseq ../seqs/mysong/mysong.fseq --model Arch1 --at 0:42.5              # what that prop showed
+./run wall.py --fseq ../seqs/mysong/mysong.fseq --at 42.5,61                         # the matrix wall, panels in order
+./run yard.py --fseq ../seqs/mysong/mysong.fseq --at 42.5                            # the whole yard
+./run litstats.py ../seqs/mysong/mysong.fseq 20,40 "Arch1,Spiral Tree 3"             # how lit each prop is
 ```
 
 `reference/pipeline.md` covers the gotchas.
@@ -190,6 +194,11 @@ The examples were written for one specific yard: six free-standing vertical matr
 arches, 29 pixel sticks, spiral trees, a fence line and a manger spotlight. They use that show's model names, so
 they won't run against your layout as they are. Read them for the ideas and the effect settings, then let the
 agent write builds for your own `show_config.py`.
+
+The two newest, `aggie_war_hymn` and `tso_wizards_winter`, were made for the same show's 2026-11 layout (nine
+staggered Verts, five trunk wraps, ten arches) with `examples/aggie_war_hymn/show_config.py`. They are the
+reference for Normal/Additive blending, pixel art as per-panel pictures, the whole-yard orb, and checking a build
+by rendering it through `xl_mcp.py` and reading the frames back.
 
 ## License
 

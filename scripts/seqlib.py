@@ -17,6 +17,13 @@ from show_config import *       # ELEMENTS, ALL, CANVAS, TRUNKS, ARCHES, FOREST,
 # effects that reference files (media, shaders) need the path as xLights sees it: the show folder on the machine
 # that runs xLights. Override with XLIGHTS_MEDIA_ROOT; default is show_config's MEDIA_ROOT, else this folder.
 MEDIA_ROOT = os.environ.get('XLIGHTS_MEDIA_ROOT') or globals().get('MEDIA_ROOT') or str(SHOW)
+# the folder under the show that holds the song folders (show_config SEQS_DIR; some shows use e.g. 'seq2026').
+# The analysis scripts read seqs/<song>: on the agent's copy, symlink seqs -> <SEQS_DIR> when they differ.
+SEQS_DIR = globals().get('SEQS_DIR', 'seqs')
+# how a layer blends with the layers under it. None = xLights' default (Normal: lit pixels cover, unlit pixels
+# show through). 'Max' was the old default; on xLights 2026.19 it showed ONLY the top layer (verified with test
+# renders on the lol2026 show, reference/xsq-format.md "Layer blending"), so it is opt-in: LAYER_BLEND = 'Max'.
+LAYER_BLEND = globals().get('LAYER_BLEND', None)
 
 RED, GREEN, WHITE, GOLD, BLACK = '#FF0A1E', '#00E040', '#FFFFFF', '#FFAA00', '#000000'
 DEEP_RED, AMBER, LIME = '#8C0010', '#FF6A00', '#9DFF3A'
@@ -40,6 +47,21 @@ class Grad:
 
     def preview(self):
         return self.stops[len(self.stops) // 2][1]
+
+
+def write_png(path, rows, colors, width=None, height=None):
+    """pixel art -> a PNG: `rows` top row first, one character per pixel; `colors` maps characters to '#RRGGBB'
+    (characters not in it are transparent). For a Pictures effect on a matrix of exactly that size (Seq.pictures).
+    Needs Pillow (the audio environment has it)."""
+    from PIL import Image
+    w = width or max(len(r) for r in rows); h = height or len(rows)
+    im = Image.new('RGBA', (w, h), (0, 0, 0, 0)); px = im.load()
+    for y, row in enumerate(rows[:h]):
+        for x, ch in enumerate(row[:w]):
+            c = colors.get(ch)
+            if c: px[x, y] = tuple(int(c[i:i + 2], 16) for i in (1, 3, 5)) + (255,)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    im.save(path)
 
 
 def preview_color(c):
@@ -67,7 +89,7 @@ def song_dir(song):
 
 
 def media_path(song, mp3):
-    return f'{MEDIA_ROOT}/seqs/{song}/{mp3}'
+    return f'{MEDIA_ROOT}/{SEQS_DIR}/{song}/{mp3}'
 
 
 NOTE_NAMES = {'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5, 'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11}
@@ -165,8 +187,10 @@ class Seq:
     def add(self, els, layer, name, start, end, settings, colors, bright=100, sparkles=0, prio=0, minlen=50):
         s, e = q(start), q(end)
         if e - s < minlen: e = s + minlen          # minlen=25 for frame-by-frame animation
-        if layer < self.nlayers - 1 and 'T_CHOICE_LayerMethod' not in settings and settings.get('_blend', 'Max'):
-            settings = dict(settings, T_CHOICE_LayerMethod=settings.get('_blend', 'Max'))
+        blend = settings.get('_blend', 'default')
+        blend = LAYER_BLEND if blend == 'default' else blend      # 'default' -> the show's LAYER_BLEND (Normal)
+        if layer < self.nlayers - 1 and 'T_CHOICE_LayerMethod' not in settings and blend:
+            settings = dict(settings, T_CHOICE_LayerMethod=blend)
         settings = {k: v for k, v in settings.items() if k != '_blend'}
         sett = ','.join(f'{k}={v}' for k, v in sorted(settings.items()))
         for el in ([els] if isinstance(els, str) else els):
@@ -175,7 +199,7 @@ class Seq:
                                            prio=prio, colors=[preview_color(c) for c in colors], bright=bright))
 
     # ------------------------------------------------------------ effects
-    def on(self, els, layer, start, end, color, a=100, b=100, bright=100, subbuf=None, blend='Max', perModel=False,
+    def on(self, els, layer, start, end, color, a=100, b=100, bright=100, subbuf=None, blend='default', perModel=False,
            sparkles=0, prio=0, minlen=50):
         st = {'E_TEXTCTRL_Eff_On_Start': a, 'E_TEXTCTRL_Eff_On_End': b, '_blend': blend}
         if subbuf: st['B_CUSTOM_SubBuffer'] = subbuf
@@ -379,6 +403,49 @@ class Seq:
                                                    'Min=-300.00|Max=300.00|P2=47.00|P3=40.00|TO=75|RV=TRUE|')
         if perModel: st['B_CHOICE_BufferStyle'] = 'Per Model Default'
         self.add(els, layer, 'Spirals', start, end, st, colors, bright)
+
+    def pictures(self, els, layer, start, end, path, fadein=0, fadeout=0, scaling='No Scaling', direction='none',
+                 speed=1.0, minlen=25):
+        """Pictures: an image file (absolute path as xLights sees it: f'{MEDIA_ROOT}/...'). A PNG exactly the size of a
+        matrix (6x44 for a Vert) with scaling='No Scaling' lands pixel for pixel; transparent PNG pixels show the
+        layers and rows below. Pixel art this way is one effect per picture instead of one per rectangle
+        (see write_png and reference/techniques.md "Pixel art on matrices")."""
+        st = {'E_CHECKBOX_Pictures_PixelOffsets': 0, 'E_CHECKBOX_Pictures_Shimmer': 0,
+              'E_CHECKBOX_Pictures_TransparentBlack': 0, 'E_CHECKBOX_Pictures_WrapX': 0,
+              'E_CHOICE_Pictures_Direction': direction, 'E_CHOICE_Scaling': scaling, 'E_SLIDER_PicturesXC': 0,
+              'E_SLIDER_PicturesYC': 0, 'E_SLIDER_Pictures_EndScale': 100, 'E_SLIDER_Pictures_StartScale': 100,
+              'E_TEXTCTRL_Pictures_Filename': path, 'E_TEXTCTRL_Pictures_FrameRateAdj': '1.0',
+              'E_TEXTCTRL_Pictures_Speed': f'{speed:.1f}', 'E_TEXTCTRL_Pictures_TransparentBlack': 0}
+        if fadein: st['T_TEXTCTRL_Fadein'] = f'{fadein:.2f}'
+        if fadeout: st['T_TEXTCTRL_Fadeout'] = f'{fadeout:.2f}'
+        self.add(els, layer, 'Pictures', start, end, st, [WHITE], minlen=minlen)
+
+    def snowflakes(self, els, layer, start, end, colors=(WHITE,), count=4, speed=5, falling='Falling', kind=1,
+                   per_model=True, bright=100, fadeout=0):
+        """Snowflakes: real falling snow. kind 1 = single-pixel flakes (right for 6-wide matrices; Meteors read as
+        rain/static there). falling: 'Falling', 'Driving', 'Falling & Accumulating' (piles up at the bottom).
+        per_model gives every member of a group its own snowfall."""
+        st = {'E_CHOICE_Falling': falling, 'E_SLIDER_Snowflakes_Count': count, 'E_SLIDER_Snowflakes_Speed': speed,
+              'E_SLIDER_Snowflakes_Type': kind, 'E_SLIDER_Snowflakes_WarmupFrames': 40}
+        if per_model: st['B_CHOICE_BufferStyle'] = 'Per Model Default'
+        if fadeout: st['T_TEXTCTRL_Fadeout'] = f'{fadeout:.2f}'
+        self.add(els, layer, 'Snowflakes', start, end, st, list(colors), bright)
+
+    def orb(self, els, layer, start, end, path, grad=None, rx=6.0, ry=22.0, step=0.05, bright=100):
+        """a glowing sphere moving through a group's buffer (the whole yard: ALL): path(f, t) -> (x %, y %[, size])
+        with f = 0..1 over the flight. Drawn as a radial gradient in a subbuffer stepped every `step` s, blended
+        Additive so its dark rim never blanks what is under it. Put the group LAST in the element list so other rows
+        don't cover it. rx/ry are % of the buffer: on a wide yard buffer ry ~ 3-4 x rx looks round."""
+        grad = grad or Grad((0, WHITE), (0.28, WHITE), (0.45, '#00E5FF'), (0.75, '#1E50FF'), (1, BLACK),
+                            mode='radial-out')
+        t = start
+        while t < end - 0.02:
+            e = min(t + step, end)
+            p = path((t - start) / max(end - start, 1e-6), t)
+            x, y = p[0], p[1]; s = p[2] if len(p) > 2 else 1.0
+            self.on(els, layer, t, e, grad, bright, bright, blend='Additive', minlen=25,
+                    subbuf=sub(x - rx * s, y - ry * s, x + rx * s, y + ry * s))
+            t = e
 
     def matrix_slice_flash(self, t, dur, color, k6, y1=0, y2=100, bright=100, layer=0):
         """light just canvas panel k6 (left to right) and the matching trunk, between heights y1..y2 %
