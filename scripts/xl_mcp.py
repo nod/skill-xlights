@@ -13,7 +13,7 @@ folder here, and `xl.py pull` (GET /files/<path>) takes the .fseq back for snap.
 A push never replaces a file the user changed here: it refuses unless the file is still what the server last pushed,
 or an .xsq that an xLights save only normalised (xsq_compare.py: the same effects). It refuses the sequence xLights
 has open, and an .xsq whose autosave is newer. force=1 replaces anyway, and every replaced file is backed up first.
-Only sequence, audio, video, image and shader files can be pushed; the layout is never written.
+Only sequence, audio, video, image, shader and notes (.md) files can be pushed; the layout is never written.
 
 usage (on the xLights machine, next to xlapi.py and xsq_compare.py):
     uv run xl_mcp.py [--show=<show folder>] [--port=8765] [--host=0.0.0.0]
@@ -36,7 +36,7 @@ from xlapi import XLights, Refused, NoAnswer, newer_autosave
 from xsq_compare import compare
 
 PUSHABLE = {'.xsq', '.mp3', '.m4a', '.wav', '.ogg', '.flac', '.mp4', '.mov', '.png', '.jpg', '.jpeg', '.gif', '.svg',
-            '.fs', '.glsl', '.json', '.xtiming'}      # .json: the settings some shaders keep beside the .fs
+            '.fs', '.glsl', '.json', '.xtiming', '.md'}   # .json: shader sidecars; .md: a song's notes.md
 SHOW = STATE = XL = None                               # set in main()
 
 
@@ -49,7 +49,8 @@ SHOW = STATE = XL = None                               # set in main()
 #   0.1.3  .json files can be pushed (shader sidecars), so a song folder can travel complete
 #   0.1.4  push guard (xsq_compare): a save's 'Per Model ...' -> plain buffer style on a single model and its
 #          '&' -> '&amp;' inside a setting read as unchanged (they made every saved build look hand-edited)
-VERSION = '0.1.4'
+#   0.1.5  .md files can be pushed, so a song folder's notes.md travels with its sequence
+VERSION = '0.1.5'
 mcp = MCPServer('xlights', version=VERSION, instructions=(
     'Drives the xLights on the machine this server runs on, with safety rules (one render at a time, never discard '
     'unsaved edits). Use it only when the user has said you may drive their xLights, and not while they are working '

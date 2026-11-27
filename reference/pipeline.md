@@ -121,7 +121,7 @@ Which version a server runs: its startup line, the first line of `status` and th
 changed there: it refuses unless the file is still what the server last pushed, or an `.xsq` that an xLights save
 only normalised (`xsq_compare.py`), and it refuses the sequence xLights has open and an `.xsq` whose `.xbkp` is
 newer. `--force` replaces it anyway; every replaced file is backed up under `~/.cache/xlights-tooling/mcp/replaced/`
-there. Only sequence, audio, video, image and shader files (with a shader's `.json`) can be pushed; the layout is never written. `pull`
+there. Only sequence, audio, video, image and shader files (with a shader's `.json`) and notes (`.md`) can be pushed; the layout is never written. `pull`
 refuses to replace a local `.xsq` that differs (it is the builder's file; `--out=<path>` to compare). The server
 runs one command at a time and answers "busy" to the rest, so nothing reaches xLights during a render. The token is
 plain HTTP on the LAN: let only the agent's machine through the firewall to the server's port.
